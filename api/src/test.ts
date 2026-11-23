@@ -256,6 +256,14 @@ test('admins see open disputes with booking context and can resolve each only on
   assert.equal(one('SELECT status FROM bookings WHERE id=?', booking.id).status, 'completed');
   assert.equal((await request('/api/admin/disputes', admin)).data.length, 0);
 });
+test('vendor summary counts listings per service and city', async () => {
+  const all = (await request('/api/vendors/summary')).data;
+  const pune = (await request('/api/vendors/summary?city=Pune')).data;
+  assert.equal(all.total, Object.values(all.by_category).reduce((a: number, b: any) => a + b, 0));
+  assert.ok(pune.total > 0 && pune.total <= all.total);
+  assert.equal((await request('/api/vendors/summary?city=Pune&x=1')).status, 200);
+  assert.ok(Number.isInteger(all.on_platform) && all.on_platform <= all.total);
+});
 test('roadmap tracks each vendor service and a month-by-month timeline', async () => {
   const r = await request('/api/planner/roadmap', couple);
   assert.equal(r.status, 200);

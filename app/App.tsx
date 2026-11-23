@@ -19,6 +19,8 @@ import { ProfileScreen } from './src/profile';
 import { Btn, Chip, C, F, M, H, Card, TabIcon, ErrorBoundary, GuestCtx, MOTION, useReducedMotion } from './src/ui';
 import { Icon, IconName, Logo } from './src/icons';
 import { syncReminders } from './src/reminders';
+import Onboarding from './src/onboarding';
+import { hasOnboarded } from './src/prefs';
 // Shown while the session and fonts load. Same burgundy as the native splash so the hand-off has no flash,
 // and it says what is happening when the server is slow instead of spinning silently.
 function BootScreen({ fontsReady }: { fontsReady: boolean }) {
@@ -81,15 +83,17 @@ export default function App() {
   const navState = React.useRef<any>(undefined);
   // New accounts open where they can start: couples on Plan (wedding setup), vendors on their storefront.
   const landing = React.useRef<string | undefined>(undefined);
+  const [seen, setSeen] = useState<boolean | null>(null); useEffect(() => { hasOnboarded().then(setSeen); }, []);
   const [state, setState] = useState<'boot' | 'out' | 'in'>('boot'); const [me, setMe] = useState<any>(null); const [lang, setLangS] = useState('en');
   const setLang = (l: string) => { setCur(l); setLangS(l); AsyncStorage.setItem('lang', l).catch(() => {}); };
   const boot = async () => { try { const has = await restore(); setCur('en'); setLangS('en'); if (!has) return setState('out'); setMe(await api('/me')); setState('in'); syncReminders().catch(() => {}); } catch { setState('out'); } };
   useEffect(() => { boot(); }, []);
   const logout = async () => { await setToken(''); navState.current = undefined; setState('out'); };
-  if (state === 'boot' || !fonts) return <BootScreen fontsReady={!!fonts} />;
+  if (state === 'boot' || !fonts || seen === null) return <BootScreen fontsReady={!!fonts} />;
   const signedIn = (result: SignedIn) => { landing.current = result.isNew ? (result.role === 'vendor' ? 'Store' : 'Plan') : undefined; navState.current = undefined; boot(); };
   if (state === 'out') return (<LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><GuestCtx.Provider value={true}><NavigationContainer key={'guest-' + lang}>
-    <Stack.Navigator screenOptions={{ ...hdr, animation: 'slide_from_right' }}>
+    <Stack.Navigator initialRouteName={seen ? 'Home' : 'Onboarding'} screenOptions={{ ...hdr, animation: 'slide_from_right' }}>
+      <Stack.Screen name="Onboarding" options={{ headerShown: false, gestureEnabled: false }}>{(p: any) => <Onboarding onDone={(to) => { p.navigation.reset({ index: 0, routes: [{ name: 'Home' }] }); if (to === 'signin') setTimeout(() => p.navigation.navigate('SignIn'), 0); }} />}</Stack.Screen>
       <Stack.Screen name="Home" component={GuestTabs} options={{ headerShown: false }} />
       <Stack.Screen name="Vendor" component={VendorScreen} options={{ title: '' }} />
       <Stack.Screen name="SignIn" options={{ headerShown: false, presentation: 'modal', animation: 'slide_from_bottom' }}>{(p: any) => <Login onDone={signedIn} onClose={() => p.navigation.goBack()} lang={lang} setLang={setLang} />}</Stack.Screen>

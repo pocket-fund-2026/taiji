@@ -69,6 +69,13 @@ app.get('/api/vendors', wrap((req: any, res: any) => {
   if (text) { w.push('(name LIKE ? OR description LIKE ? OR locality LIKE ?)'); a.push(...Array(3).fill(`%${text}%`)); }
   res.json(q(`SELECT v.*,${ratingSql},(SELECT url FROM vendor_photos p WHERE p.vendor_id=v.id ORDER BY p.id LIMIT 1) cover_url FROM vendors v WHERE ${w.join(' AND ')} ORDER BY sample ASC, unclaimed ASC, verified DESC, id LIMIT 200`, ...a));
 }));
+// Counts for the Discover dashboard: how many listings exist per service, optionally for one city (vendors who travel count everywhere).
+app.get('/api/vendors/summary', wrap((req: any, res: any) => {
+  const city = typeof req.query.city === 'string' ? req.query.city : ''; const w = city ? 'WHERE (city=? OR travels=1)' : ''; const a = city ? [city] : [];
+  const by_category: Record<string, number> = {}; let total = 0;
+  for (const r of q(`SELECT category, COUNT(*) n FROM vendors ${w} GROUP BY category`, ...a)) { by_category[r.category] = r.n; total += r.n; }
+  res.json({ total, by_category, on_platform: one(`SELECT COUNT(*) n FROM vendors ${w ? w + ' AND' : 'WHERE'} unclaimed=0 AND sample=0`, ...a).n });
+}));
 app.get('/api/vendors/:id', wrap((req: any, res: any) => {
   const v = one(`SELECT v.*,${ratingSql} FROM vendors v WHERE id=?`, req.params.id); if (!v) throw fail(404, 'Not found');
   res.json({ ...v, ...vendorCatalog(v.id), reviewList: q('SELECT r.rating,r.text,r.created_at,u.name FROM reviews r JOIN users u ON u.id=r.user_id WHERE vendor_id=?', v.id) });

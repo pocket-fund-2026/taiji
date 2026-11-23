@@ -7,9 +7,39 @@ import { CAT_ICON, Icon, Logo } from './icons';
 import { CategoryCover, FloralArch, SectionTitle, categoryPalette } from './visuals';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PortfolioPhoto, VendorCatalog } from './catalog';
+import { getPrefs, Prefs } from './prefs';
 
 const CATEGORIES: [string, string][] = [['photographer', 'Photography'], ['makeup', 'Makeup'], ['mehndi', 'Mehndi'], ['decor', 'Decor'], ['venue', 'Venues'], ['caterer', 'Catering'], ['dj', 'DJ & music'], ['pandit', 'Pandit']];
 const CITIES = ['Mumbai', 'Pune', 'Nashik', 'Nagpur'];
+// Services grouped the way a family thinks about them, each group collapsible, like the sections of a dashboard.
+const GROUPS: [string, string[]][] = [['Venue and food', ['venue', 'caterer']], ['Look and decor', ['decor', 'makeup', 'mehndi']], ['Capture and music', ['photographer', 'dj']], ['Ceremony', ['pandit']]];
+const daysTo = (date?: string) => { if (!date) return null; const d = Math.ceil((new Date(date + 'T00:00:00').getTime() - Date.now()) / 86400000); return Number.isFinite(d) && d >= 0 ? d : null; };
+function Stat({ value, label }: { value: string; label: string }) {
+  return <View style={{ flex: 1, minWidth: 96, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12 }}>
+    <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 22, color: C.ink, fontVariant: ['tabular-nums'] }}>{value}</Text>
+    <M style={{ fontSize: 12, marginTop: 2 }}>{label}</M></View>;
+}
+function ServiceTile({ k, count, on, onPress, grow }: { k: string; count?: number; on: boolean; onPress: () => void; grow: boolean }) {
+  const pal = categoryPalette(k); const label = categoryLabel(k);
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${label}${count != null ? ', ' + count : ''}`} accessibilityState={{ selected: on }} onPress={onPress}
+    style={({ pressed }) => ({ width: '31.5%', flexGrow: grow ? 1 : 0, minHeight: 92, paddingVertical: 12, borderRadius: 12, borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, backgroundColor: on ? C.tint : C.card, alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.85 : 1 })}>
+    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: pal.bg, alignItems: 'center', justifyContent: 'center' }}><Icon name={CAT_ICON[k] || 'store'} size={20} color={pal.ink} /></View>
+    <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: C.ink, fontWeight: on ? '600' : '500', textAlign: 'center' }} numberOfLines={1}>{label}</Text>
+    {count != null ? <M style={{ fontSize: 11 }}>{count} {tr('listed')}</M> : null}
+  </Pressable>;
+}
+function ServiceGroups({ category, setCategory, counts, picks }: { category: string; setCategory: (c: string) => void; counts?: Record<string, number>; picks: string[] }) {
+  const [closed, setClosed] = useState<Record<string, boolean>>({});
+  // Services the person picked in onboarding lead in their own group and are not repeated below.
+  const groups: [string, string[]][] = (picks.length ? [['For you', picks] as [string, string[]], ...GROUPS.map(([n, ks]) => [n, ks.filter(k => !picks.includes(k))] as [string, string[]])] : GROUPS).filter(([, ks]) => ks.length);
+  return <View style={{ marginTop: 4 }}>{groups.map(([name, keys]) => { const shut = !!closed[name]; const total = keys.reduce((n, k) => n + (counts?.[k] || 0), 0); return <View key={name} style={{ marginBottom: 12 }}>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded: !shut }} accessibilityLabel={tr(name)} onPress={() => setClosed(c => ({ ...c, [name]: !shut }))} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 36 }}>
+      <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, fontSize: 13, fontWeight: '600', color: name === 'For you' ? C.primary : C.mute }}>{tr(name)}{counts ? ` · ${total}` : ''}</Text>
+      <View style={{ transform: [{ rotate: shut ? '0deg' : '90deg' }] }}><Icon name="chevron" size={16} color={C.mute} strokeWidth={2} /></View>
+    </Pressable>
+    {!shut && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{keys.map(k => <ServiceTile key={name + k} k={k} count={counts ? counts[k] || 0 : undefined} on={category === k} grow={keys.length > 1} onPress={() => setCategory(category === k ? '' : k)} />)}</View>}
+  </View>; })}</View>;
+}
 // Couples budget in lakhs, so the common ceilings are one tap away.
 const BUDGET_PRESETS = [50000, 100000, 200000, 500000];
 // Recommended order: vendors on Shaadi OS, then real businesses that have not joined, then demo samples.
@@ -79,10 +109,14 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
   const toggleCompare = (vendor: any) => setComparison(items => items.some(item => item.id === vendor.id) ? items.filter(item => item.id !== vendor.id) : items.length < 3 ? [...items, vendor] : items);
   const [city, setCity] = useState(''); const [category, setCategory] = useState(''); const [query, setQuery] = useState(''); const [sort, setSort] = useState('recommended');
   const [showBudget, setShowBudget] = useState(false);
+  const [prefs, setPrefsState] = useState<Prefs | null>(null); const [summary, setSummary] = useState<any>(null);
+  // Onboarding answers set the starting city once, then the person is free to change it.
+  useEffect(() => { getPrefs().then(p => { setPrefsState(p); if (p?.city) setCity(c => c || p.city!); }); }, []);
   // Arriving from the plan's vendor tracker opens Discover on that service.
   useEffect(() => { if (preset?.category) setCategory(preset.category); }, [preset?.category, preset?.at]);
   const clearFilters = () => { setCity(''); setCategory(''); setQuery(''); setBudget(''); setBudgetDraft(''); setShowBudget(false); setFreeOn(false); };
   const [vendors, setVendors] = useState<any[] | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => { let on = true; api<any>('/vendors/summary' + (city ? '?city=' + encodeURIComponent(city) : '')).then(r => { if (on) setSummary(r); }).catch(() => { if (on) setSummary(null); }); return () => { on = false; }; }, [city, refreshKey]);
   useEffect(() => {
     let active = true;
     const timer = setTimeout(async () => {
@@ -105,15 +139,12 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
       <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, color: C.ink, fontSize: 28, lineHeight: 34, textAlign: 'center' }}>{tr('Find wedding vendors')}</Text>
       <M style={{ marginTop: 4, marginBottom: 16, textAlign: 'center', alignSelf: 'center', maxWidth: 320 }}>{tr('Venues, caterers, photographers, mehndi artists and pandits in Mumbai, Pune, Nashik and Nagpur.')}</M>
       <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" />
-      {/* All eight services visible at once, as a 4 x 2 grid. */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-        {CATEGORIES.map(([key, label]) => { const on = category === key; const pal = categoryPalette(key); return (
-          <Pressable key={key} accessibilityRole="button" accessibilityLabel={tr(label)} accessibilityState={{ selected: on }} onPress={() => setCategory(on ? '' : key)}
-            style={({ pressed }) => ({ width: '23%', flexGrow: 1, minHeight: 84, paddingVertical: 12, borderRadius: 12, borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, backgroundColor: on ? C.tint : C.card, alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.75 : 1 })}>
-            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: pal.bg, alignItems: 'center', justifyContent: 'center' }}><Icon name={CAT_ICON[key] || 'store'} size={20} color={pal.ink} /></View>
-            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: C.ink, fontWeight: on ? '600' : '500', textAlign: 'center' }} numberOfLines={1}>{tr(label)}</Text>
-          </Pressable>); })}
-      </View>
+      {(() => { const left = daysTo(weddingDate); return <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <Stat value={summary ? String(summary.total) : '–'} label={city ? `${tr('vendors in')} ${city}` : tr('vendors listed')} />
+        {summary?.on_platform > 0 ? <Stat value={String(summary.on_platform)} label={tr('on Shaadi OS')} /> : null}
+        {left != null ? <Stat value={String(left)} label={tr('days to your wedding')} /> : null}
+      </View>; })()}
+      <ServiceGroups category={category} setCategory={setCategory} counts={summary?.by_category} picks={prefs?.services || []} />
       <M style={{ marginTop: 20, marginBottom: 8 }}>{tr('Wedding city')}</M>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20 }}><Chip label={tr('All cities')} on={!city} onPress={() => setCity('')} />{CITIES.map(c => <Chip key={c} label={c} on={city === c} onPress={() => setCity(city === c ? '' : c)} />)}</ScrollView>
       {comparison.length > 0 && <Card><View style={s.row}><H style={{ fontSize: 20 }}>{tr('Compare vendors')} ({comparison.length}/3)</H><Btn small kind="ghost" title={tr('Clear')} onPress={() => { setComparison([]); setShowComparison(false); }} /></View>
