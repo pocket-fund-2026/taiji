@@ -3,6 +3,7 @@
 // Usage: node src/import-listings.ts ../vendor-prospects.csv [../vendor-contacts.csv]
 import { readFileSync } from 'node:fs';
 import { one, run } from './db.ts';
+import { isSuppressed } from './compliance.ts';
 
 const CATEGORIES = new Set(['photographer', 'makeup', 'mehndi', 'decor', 'venue', 'caterer', 'dj', 'pandit']);
 
@@ -37,6 +38,7 @@ export function importListings(path: string) {
     const name = r[at.name]?.trim(); const category = r[at.category]?.trim(); const city = r[at.city]?.trim();
     const website = httpUrl(r[at.website] || ''); const source = httpUrl(r[at.source] || '');
     if (!name || !CATEGORIES.has(category) || !city || !website) { skipped.push(name || '(no name)'); continue; }
+    if (isSuppressed(name, city)) { skipped.push(name + ' (removal requested)'); continue; }
     const notes = r[at.notes]?.trim();
     const fields = [category, r[at.locality]?.trim() || null, notes ? notes[0].toUpperCase() + notes.slice(1) : null, website, source];
     const existing = one('SELECT id FROM vendors WHERE unclaimed=1 AND name=? AND city=?', name, city);

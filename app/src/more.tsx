@@ -131,26 +131,54 @@ function DisputeRow({ d, done }: { d: any; done: () => void }) {
   return (<View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line }}>
     <View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontWeight: '500' }}>{d.vendor_name || tr('Vendor')} · {inr(d.total_paise)}</Text><Tag tone="warn" label={d.raised_by_role === 'couple' ? tr('Raised by couple') : tr('Raised by vendor')} /></View>
     <M style={{ marginTop: 4 }}>{d.reason}</M>
-    {d.held_paise > 0 ? <M style={{ marginTop: 2 }}>{tr('Held in escrow')}: {inr(d.held_paise)}</M> : null}
+    {d.held_paise > 0 ? <M style={{ marginTop: 2 }}>{tr('Held (demo)')}: {inr(d.held_paise)}</M> : null}
     {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>{OUTCOMES.map(([k, l]) => <Chip key={k} label={tr(l)} on={outcome === k} onPress={() => setOutcome(k)} />)}</ScrollView>
       <Input label={tr('Resolution note')} value={note} onChangeText={setNote} multiline />
       <Btn small title={tr('Save resolution')} disabled={busy || note.trim().length < 3} onPress={resolve} />
-      <M style={{ marginTop: 6 }}>{tr('Escrow money is not moved here. Settle any payout with your CA or payment partner.')}</M></>}
+      <M style={{ marginTop: 6 }}>{tr('No money is moved here. Settle any payout with your CA or licensed payment partner.')}</M></>}
   </View>);
 }
 
+function InboxRow({ title, detail, actions, done }: { title: string; detail: string; actions: { label: string; path: string; body: (note: string) => any; danger?: boolean }[]; done: () => void }) {
+  const [open, setOpen] = useState(false); const [note, setNote] = useState(''); const [busy, setBusy] = useState(false);
+  const run = async (a: { path: string; body: (n: string) => any; label: string; danger?: boolean }) => {
+    if (a.danger && !(await confirm(tr('Are you sure?'), a.label, tr('Confirm'), true))) return;
+    setBusy(true); try { await api(a.path, 'POST', a.body(note.trim())); done(); } catch (e) { err(e); } finally { setBusy(false); }
+  };
+  return (<View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line }}>
+    <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontWeight: '500' }}>{title}</Text><M style={{ marginTop: 2 }}>{detail}</M>
+    {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : <>
+      <Input label={tr('Note')} value={note} onChangeText={setNote} multiline />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{actions.map(a => <Btn key={a.label} small kind={a.danger ? 'ghost' : 'primary'} title={a.label} disabled={busy || note.trim().length < 3} onPress={() => run(a)} />)}</View></>}
+  </View>);
+}
+
+function VerifyRow({ v, done }: { v: any; done: () => void }) {
+  const [basis, setBasis] = useState(''); const [open, setOpen] = useState(false);
+  const verify = async () => { try { await api(`/admin/vendors/${v.id}/verify`, 'POST', { basis: basis.trim() }); done(); } catch (e) { err(e); } };
+  return (<View style={{ marginTop: 8 }}><View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink }}>{v.name}</Text>{!open ? <Btn small icon="seal" title={tr('Verify')} onPress={() => setOpen(true)} /> : null}</View>
+    {open ? <><Input label={tr('What did you check? (GST certificate, call, site visit)')} value={basis} onChangeText={setBasis} multiline /><Btn small title={tr('Confirm verification')} disabled={basis.trim().length < 3} onPress={verify} /></> : null}</View>);
+}
+
 export function Admin() {
-  const [sum, setSum] = useState<any>(null); const [vs, setVs] = useState<any[]>([]); const [ds, setDs] = useState<any[]>([]);
-  const load = async () => { try { setSum(await api('/admin/summary')); setVs(await api('/admin/vendors')); setDs(await api('/admin/disputes')); } catch { setSum(null); } };
+  const [sum, setSum] = useState<any>(null); const [vs, setVs] = useState<any[]>([]); const [ds, setDs] = useState<any[]>([]); const [inbox, setInbox] = useState<any>({ listing_requests: [], grievances: [], reports: [] });
+  const load = async () => { try { setSum(await api('/admin/summary')); setVs(await api('/admin/vendors')); setDs(await api('/admin/disputes')); setInbox(await api('/admin/inbox')); } catch { setSum(null); } };
   useEffect(() => { load(); }, []);
   if (!sum) return null;
-  const verify = async (id: number) => { await api(`/admin/vendors/${id}/verify`, 'POST').catch(err); load(); };
+  const KIND: Record<string, string> = { remove: 'Remove listing', claim: 'Claim listing', correct: 'Correct details' };
   return (<Card style={{ marginTop: 16 }}><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 17, color: C.ink }}>{tr('Admin')}</Text>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>{[[tr('GMV'), inr(sum.gmv_paise)], [tr('Commission'), inr(sum.commission_paise)], [tr('Bookings'), sum.bookings], [tr('Open disputes'), sum.open_disputes]].map(([k, v], i) => (
       <View key={i} style={{ width: '50%', paddingVertical: 8 }}><M>{k}</M><Text maxFontSizeMultiplier={1.3} style={{ fontWeight: '500', color: C.ink, fontSize: 17 }}>{v}</Text></View>))}</View>
     {ds.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 8 }]}>{tr('Open disputes')}</Text> : null}
     {ds.map(d => <DisputeRow key={d.id} d={d} done={load} />)}
-    {vs.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 8 }]}>{tr('Vendors awaiting verification')}</Text> : null}
-    {vs.map(v => <View key={v.id} style={[s.row, { marginTop: 8 }]}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink }}>{v.name}</Text><Btn small icon="seal" title={tr('Verify')} onPress={() => verify(v.id)} /></View>)}</Card>);
+    {inbox.listing_requests.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 12 }]}>{tr('Listing requests')} · {inbox.listing_requests.length}</Text> : null}
+    {inbox.listing_requests.map((l: any) => <InboxRow key={'l' + l.id} done={load} title={`${tr(KIND[l.kind] || l.kind)}: ${l.vendor_name || l.name}`} detail={`${l.name} · ${l.contact}${l.message ? ' · ' + l.message : ''}`}
+      actions={[...(l.kind === 'remove' && l.vendor_id ? [{ label: tr('Remove listing'), path: `/admin/listing-requests/${l.id}/resolve`, body: (n: string) => ({ action: 'remove', note: n }), danger: true }] : []), { label: tr('Close request'), path: `/admin/listing-requests/${l.id}/resolve`, body: (n: string) => ({ action: 'close', note: n }) }]} />)}
+    {inbox.grievances.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 12 }]}>{tr('Grievances')} · {inbox.grievances.length}</Text> : null}
+    {inbox.grievances.map((g: any) => <InboxRow key={'g' + g.id} done={load} title={`G-${String(g.id).padStart(6, '0')} · ${g.category}`} detail={`${g.name} · ${g.contact} · ${g.message}`} actions={[{ label: tr('Mark resolved'), path: `/admin/grievances/${g.id}/resolve`, body: (n: string) => ({ resolution: n }) }]} />)}
+    {inbox.reports.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 12 }]}>{tr('Reports')} · {inbox.reports.length}</Text> : null}
+    {inbox.reports.map((r: any) => <InboxRow key={'r' + r.id} done={load} title={`${r.kind} #${r.target_id}`} detail={r.reason} actions={[{ label: tr('Mark resolved'), path: `/admin/reports/${r.id}/resolve`, body: (n: string) => ({ resolution: n }) }]} />)}
+    {vs.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 12 }]}>{tr('Vendors awaiting verification')}</Text> : null}
+    {vs.map(v => <VerifyRow key={v.id} v={v} done={load} />)}</Card>);
 }

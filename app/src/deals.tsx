@@ -5,6 +5,7 @@ import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Sc
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from './api';
 import { tr } from './i18n';
+import { ReportBox, BlockButton } from './safety';
 import { Bar, Btn, C, Card, Chip, ContactButtons, Empty, F, Input, Loading, M, Rise, Tag, confirm, dateIN, err, inr, notify, s } from './ui';
 import { CAT_ICON, Icon } from './icons';
 import { categoryLabel } from './marketplace';
@@ -27,7 +28,7 @@ export function nextStep(d: Deal, vendor: boolean): { text: string; urgent: bool
   if (vendor) {
     if (d.stage === 'new') return { text: tr('Send a quote'), urgent: true };
     if (d.stage === 'quoted') return { text: tr('Waiting for the couple to accept'), urgent: false };
-    if (open) return { text: open.status === 'pending' ? `${tr('Waiting for payment')}: ${open.label}${open.due_on ? ` · ${tr('due')} ${dateIN(open.due_on)}` : ''}` : `${tr('Paid into escrow, waiting for release')}: ${open.label}`, urgent: false };
+    if (open) return { text: open.status === 'pending' ? `${tr('Waiting for payment')}: ${open.label}${open.due_on ? ` · ${tr('due')} ${dateIN(open.due_on)}` : ''}` : `${tr('Paid (demo), waiting for you to release')}: ${open.label}`, urgent: false };
     return null;
   }
   if (d.stage === 'new') return { text: tr('Waiting for the vendor’s quote'), urgent: false };
@@ -140,7 +141,7 @@ export function DealScreen({ route, navigation }: any) {
   const act = async (path: string, body?: any) => { if (working) return; setWorking(true); try { await api(path, 'POST', body); await load(); } catch (e) { err(e); } finally { setWorking(false); } };
   const send = async () => { if (!msg.trim()) return; try { await api(`/enquiries/${id}/messages`, 'POST', { body: msg.trim() }); setMsg(''); load(); } catch (e) { err(e); } };
   const accept = async (q: any) => { if (await confirm(tr('Accept this quote?'), `${inr(q.total_paise)} · ${tr('paid in instalments, each held until you release it')}`, tr('Accept & book'))) act(`/quotes/${q.id}/accept`); };
-  const dispute = async () => { if (await confirm(tr('Raise a dispute?'), tr('Support will review this booking and any money still in escrow stays held until it is resolved.'), tr('Raise dispute'), true)) act(`/bookings/${deal.booking.id}/dispute`, { reason: 'Issue with service, needs review by support' }); };
+  const dispute = async () => { if (await confirm(tr('Raise a dispute?'), tr('Support will review this booking and any payment still held stays held until it is resolved.'), tr('Raise dispute'), true)) act(`/bookings/${deal.booking.id}/dispute`, { reason: 'Issue with service, needs review by support' }); };
   const invoice = () => api(`/bookings/${deal.booking.id}/invoice`).then((i: any) => notify(i.invoice_no, `${tr('Commission')} ${inr(i.commission_paise)} + GST ${inr(i.gst_paise)} = ${inr(i.total_paise)}\n${i.note}`)).catch(err);
   const quote = detail.quotes.find((q: any) => q.status === 'sent' || q.status === 'accepted');
   const ms: any[] = deal.booking?.milestones || [];
@@ -154,6 +155,7 @@ export function DealScreen({ route, navigation }: any) {
       <Card>
         <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{deal.other_name}</Text>
         <M>{vendor ? `${deal.guests} ${tr('guests')}` : categoryLabel(deal.category)} · {dateIN(deal.event_date)} · {tr('budget')} {inr(deal.budget_paise)}</M>
+        {detail.enquiry.other_user_id ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}><ReportBox kind="user" id={detail.enquiry.other_user_id} label={tr('Report')} /><BlockButton userId={detail.enquiry.other_user_id} /></View> : null}
         {detail.enquiry.note ? <View style={{ marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: C.bg }}>
           <M style={{ fontSize: 12 }}>{vendor ? tr('Their enquiry') : tr('Your enquiry')}</M>
           <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, lineHeight: 22, marginTop: 2 }}>{detail.enquiry.note}</Text>
@@ -188,7 +190,7 @@ export function DealScreen({ route, navigation }: any) {
         <View style={{ marginVertical: 8 }}><Bar pct={deal.booking.total_paise ? paid / deal.booking.total_paise * 100 : 0} color={C.ok} /></View>
         {ms.map(m => <View key={m.id} style={[s.row, { paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.line }]}>
           <View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink }}>{tr(m.label)}</Text><M style={{ color: m.status === 'pending' && m.due_on && m.due_on < today() ? C.warn : C.mute }}>{inr(m.amount_paise)}{m.due_on && m.status === 'pending' ? ` · ${m.due_on < today() ? tr('overdue since') : tr('due')} ${dateIN(m.due_on)}` : ''}</M></View>
-          <Tag tone={m.status === 'released' ? 'ok' : m.status === 'held' ? 'gold' : 'mute'} label={tr(m.status === 'released' ? 'Released' : m.status === 'held' ? 'Held in escrow' : 'Due')} />
+          <Tag tone={m.status === 'released' ? 'ok' : m.status === 'held' ? 'gold' : 'mute'} label={tr(m.status === 'released' ? 'Released' : m.status === 'held' ? 'Held (demo)' : 'Due')} />
         </View>)}
         <M style={{ marginTop: 8 }}>{vendor ? `${tr('Platform fee')} ${deal.booking.commission_bps / 100}% · ${tr('paid by you when money is released')}` : tr('Each payment is held until you release it, so you only release money for work that is done.')}</M>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>

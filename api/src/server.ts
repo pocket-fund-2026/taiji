@@ -1,15 +1,17 @@
 import { mountPlanner, dateSchema } from './planner.ts';
 import { instalmentDue } from './organiser.ts';
-import { readRuntimeConfig } from './config.ts';
+import { readRuntimeConfig, loadSecret, corsOrigins, adminPhones, POLICY_VERSION } from './config.ts';
 import { mountCatalog, vendorCatalog } from './catalog.ts';
 import { addAfterTasks, vendorDecided } from './traditions.ts';
 import express from 'express'; import cors from 'cors'; import jwt from 'jsonwebtoken'; import { z } from 'zod'; import { randomBytes } from 'node:crypto';
-import { db, q, one, run } from './db.ts'; import { mountExtras, TEMPLATES } from './extras.ts'; import { seed } from './seed.ts'; import { mountSite, mountSiteEarly, spamGuard } from './site.ts';
+import { db, q, one, run } from './db.ts'; import { mountExtras, TEMPLATES } from './extras.ts'; import { seed } from './seed.ts'; import { mountSite, mountSiteEarly, spamGuard } from './site.ts'; import { mountCompliance } from './compliance.ts';
 const config = readRuntimeConfig();
-const SECRET = process.env.JWT_SECRET || randomBytes(16).toString('hex');
+const SECRET = loadSecret();
 const MOCK_OTP = '123456'; // MOCK: replace with SMS/WhatsApp provider (see providers.md)
 if (config.seedDemoData) seed();
-export const app = express(); mountSiteEarly(app); app.use(cors()); // Photo uploads arrive as base64 JSON, so only that route accepts a larger body.
+export const app = express(); mountSiteEarly(app); app.disable('x-powered-by');
+app.use((_q: any, res: any, next: any) => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()'); next(); });
+app.use(cors({ origin: corsOrigins() })); // Photo uploads arrive as base64 JSON, so only that route accepts a larger body.
 const jsonSmall = express.json({ limit: '1mb' }); const jsonUpload = express.json({ limit: '12mb' });
 app.use((req, res, next) => (req.path === '/api/vendor/photos/upload' || req.path === '/api/ideas' ? jsonUpload : jsonSmall)(req, res, next));
 const wrap = (f: any) => (req: any, res: any) => { const report = (e: any) => res.status(e instanceof z.ZodError ? 400 : e.status || 500).json({ error: e instanceof z.ZodError ? e.issues[0].message : e.message }); try { return Promise.resolve(f(req, res)).catch(report); } catch (e) { return report(e); } };
@@ -27,15 +29,25 @@ app.post('/api/auth/otp', wrap((req: any, res: any) => {
   const now = Date.now(); const t = (otpTries.get(phone) || []).filter(x => now - x < 600000);
   if (t.length >= 5) { const mins = Math.max(1, Math.ceil((600000 - (now - t[0])) / 60000)); throw fail(429, `Too many codes requested for this number. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`); }
   otpTries.set(phone, [...t, now]);
-  res.json({ ok: true, mock: true, hint: 'Demo OTP is 123456' });
+  res.json({ ok: true, mock: true, ...(process.env.SHOW_OTP_HINT === '1' ? { hint: 'Demo OTP is 123456' } : {}) });
 }));
+const verifyTries = new Map<string, number[]>();
 app.post('/api/auth/verify', wrap((req: any, res: any) => {
-  const b = z.object({ phone: z.string().regex(/^[6-9]\d{9}$/), otp: z.string(), role: z.enum(['couple', 'vendor']).optional(), name: z.string().trim().min(2, 'Enter your name').max(80).optional() }).parse(req.body);
-  if (b.otp !== MOCK_OTP) throw fail(401, 'That code is not right. Check the 6 digits and try again.');
+  const b = z.object({ phone: z.string().regex(/^[6-9]\d{9}$/), otp: z.string(), role: z.enum(['couple', 'vendor']).optional(), name: z.string().trim().min(2, 'Enter your name').max(80).optional(), accept_terms: z.boolean().optional() }).parse(req.body);
+  // Wrong codes are limited per number so a six-digit code cannot be guessed.
+  const now = Date.now(); const bad = (verifyTries.get(b.phone) || []).filter(x => now - x < 600000);
+  if (bad.length >= 8) throw fail(429, 'Too many wrong codes. Try again in a few minutes.');
+  // Admin numbers never accept the public demo code: they need the private ADMIN_OTP (set only on the server).
+  const isAdmin = adminPhones().includes(b.phone);
+  const expected = isAdmin && process.env.NODE_ENV !== 'test' ? process.env.ADMIN_OTP : MOCK_OTP;
+  if (!expected || b.otp !== expected) { verifyTries.set(b.phone, [...bad, now]); throw fail(401, isAdmin && !expected ? 'Admin sign-in is not available.' : 'That code is not right. Check the 6 digits and try again.'); }
   let u = one('SELECT * FROM users WHERE phone=?', b.phone);
   if (!u) {
     if (!b.role) return res.json({ needsProfile: true });
+    // A new account starts only after the person has seen and accepted the Terms and Privacy Policy; the acceptance is logged with its version.
+    if (b.accept_terms !== true) throw fail(400, 'Please accept the Terms and Privacy Policy to create an account.');
     const r = run('INSERT INTO users(phone,name,role) VALUES(?,?,?)', b.phone, b.name || 'User', b.role); u = one('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid));
+    for (const purpose of ['terms', 'privacy_notice']) run('INSERT INTO consents(user_id,purpose,granted) VALUES(?,?,1)', u.id, `${purpose}:${POLICY_VERSION}`);
   }
   res.json({ token: jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }), user: u });
 }));
@@ -51,10 +63,10 @@ app.patch('/api/me', auth, wrap((req: any, res: any) => {
 // Vendor profile
 app.put('/api/vendor', auth, wrap((req: any, res: any) => {
   if (req.user.role !== 'vendor') throw fail(403, 'Vendors only');
-  const b = z.object({ name: z.string().min(2), category: z.string(), city: z.string(), locality: z.string().optional(), start_paise: z.number().int().positive(), description: z.string().max(500).optional(), travels: z.number().optional() }).parse(req.body);
+  const b = z.object({ name: z.string().min(2), category: z.string(), city: z.string(), locality: z.string().optional(), start_paise: z.number().int().positive(), description: z.string().max(500).optional(), travels: z.number().optional(), legal_name: z.string().trim().max(120).optional(), business_address: z.string().trim().max(250).optional(), gstin: z.string().trim().toUpperCase().regex(/^(\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z])?$/, 'Enter a valid 15-character GSTIN or leave it blank').optional() }).parse(req.body);
   const v = myVendor(req.user.id);
-  if (v) run('UPDATE vendors SET name=?,category=?,city=?,locality=?,start_paise=?,description=?,travels=? WHERE id=?', b.name, b.category, b.city, b.locality || '', b.start_paise, b.description || '', b.travels || 0, v.id);
-  else run('INSERT INTO vendors(user_id,name,category,city,locality,start_paise,description,travels,languages) VALUES(?,?,?,?,?,?,?,?,?)', req.user.id, b.name, b.category, b.city, b.locality || '', b.start_paise, b.description || '', b.travels || 0, 'en,hi');
+  if (v) run('UPDATE vendors SET name=?,category=?,city=?,locality=?,start_paise=?,description=?,travels=?,legal_name=?,business_address=?,gstin=? WHERE id=?', b.name, b.category, b.city, b.locality || '', b.start_paise, b.description || '', b.travels || 0, b.legal_name || null, b.business_address || null, b.gstin || null, v.id);
+  else run('INSERT INTO vendors(user_id,name,category,city,locality,start_paise,description,travels,languages,legal_name,business_address,gstin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', req.user.id, b.name, b.category, b.city, b.locality || '', b.start_paise, b.description || '', b.travels || 0, 'en,hi', b.legal_name || null, b.business_address || null, b.gstin || null);
   res.json(myVendor(req.user.id));
 }));
 
@@ -78,7 +90,7 @@ app.get('/api/vendors/summary', wrap((req: any, res: any) => {
 }));
 app.get('/api/vendors/:id', wrap((req: any, res: any) => {
   const v = one(`SELECT v.*,${ratingSql} FROM vendors v WHERE id=?`, req.params.id); if (!v) throw fail(404, 'Not found');
-  res.json({ ...v, ...vendorCatalog(v.id), reviewList: q('SELECT r.rating,r.text,r.created_at,u.name FROM reviews r JOIN users u ON u.id=r.user_id WHERE vendor_id=?', v.id) });
+  res.json({ ...v, ...vendorCatalog(v.id), reviewList: q('SELECT r.id,r.rating,r.text,r.created_at,u.name FROM reviews r JOIN users u ON u.id=r.user_id WHERE vendor_id=?', v.id) });
 }));
 
 // Wedding workspace
@@ -194,11 +206,14 @@ app.get('/api/enquiries', auth, wrap((req: any, res: any) => {
 app.get('/api/enquiries/:id', auth, wrap((req: any, res: any) => {
   const e = one('SELECT * FROM enquiries WHERE id=?', req.params.id); if (!canSee(e, req.user)) throw fail(404, 'Not found');
   const booked = !!one('SELECT 1 x FROM bookings WHERE enquiry_id=?', e.id);
-  res.json({ enquiry: e, booked, messages: q('SELECT * FROM messages WHERE enquiry_id=? ORDER BY id', e.id), quotes: q('SELECT * FROM quotes WHERE enquiry_id=? ORDER BY version DESC', e.id).map(x => ({ ...x, items: JSON.parse(x.items), milestones: JSON.parse(x.milestones) })), booking: one('SELECT * FROM bookings WHERE enquiry_id=?', e.id) || null });
+  const otherUser = req.user.id === e.couple_id ? one('SELECT user_id FROM vendors WHERE id=?', e.vendor_id)?.user_id ?? null : e.couple_id;
+  res.json({ enquiry: { ...e, other_user_id: otherUser }, booked, messages: q('SELECT * FROM messages WHERE enquiry_id=? ORDER BY id', e.id), quotes: q('SELECT * FROM quotes WHERE enquiry_id=? ORDER BY version DESC', e.id).map(x => ({ ...x, items: JSON.parse(x.items), milestones: JSON.parse(x.milestones) })), booking: one('SELECT * FROM bookings WHERE enquiry_id=?', e.id) || null });
 }));
 app.post('/api/enquiries/:id/messages', auth, wrap((req: any, res: any) => {
   const e = one('SELECT * FROM enquiries WHERE id=?', req.params.id); if (!canSee(e, req.user)) throw fail(404, 'Not found');
   const { body } = z.object({ body: z.string().min(1).max(1000) }).parse(req.body);
+  const other = req.user.id === e.couple_id ? one('SELECT user_id FROM vendors WHERE id=?', e.vendor_id)?.user_id : e.couple_id;
+  if (other && one('SELECT 1 x FROM blocks WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?)', req.user.id, other, other, req.user.id)) throw fail(403, 'You cannot message this person.');
   const booked = !!one('SELECT 1 x FROM bookings WHERE enquiry_id=?', e.id); const flagged = !booked && leak(body);
   if (flagged) throw fail(422, 'For your protection, phone numbers and UPI IDs can be shared only after booking. Book in-app to get Booking Protection.');
   run('INSERT INTO messages(enquiry_id,sender_id,body) VALUES(?,?,?)', e.id, req.user.id, body); res.json({ ok: true });
@@ -285,6 +300,7 @@ app.post('/api/bookings/:id/review', auth, wrap((req: any, res: any) => {
 mountCatalog(app, auth, wrap);
 mountPlanner(app, auth, myWedding, wrap);
 mountExtras(app, auth, myWedding, myVendor, () => []);
+mountCompliance(app, auth, wrap, spamGuard);
 app.get('/health', (_q, r) => { r.json({ ok: true }); });
 mountSite(app); // legal pages, SEO files, landing page and 404; must mount last so it doesn't shadow API/extras routes
 app.use((e: any, _q: any, res: any, _n: any) => res.status(e.status || 500).json({ error: e.message }));

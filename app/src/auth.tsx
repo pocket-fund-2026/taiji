@@ -5,6 +5,7 @@ import { api, setToken, setBase, getBase } from './api';
 import { Btn, Input, C, F, H, M, Chip, Tag, Rise } from './ui';
 import { Icon, IconName, Logo } from './icons';
 import { FloralArch } from './visuals';
+import { LegalLink } from './safety';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RESEND_SECONDS = 30;
@@ -24,7 +25,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState(''); const [otp, setOtp] = useState(''); const [step, setStep] = useState<0 | 1 | 2>(0);
   const [role, setRole] = useState<'couple' | 'vendor' | null>(null); const [name, setName] = useState(''); const [server, setServer] = useState(getBase()); const [busy, setBusy] = useState(false);
-  const [showServer, setShowServer] = useState(false);
+  const [showServer, setShowServer] = useState(false); const [accept, setAccept] = useState(false);
   const [error, setError] = useState(''); const [wait, setWait] = useState(0);
   const submitted = useRef('');
   useEffect(() => { if (wait <= 0) return; const t = setTimeout(() => setWait(wait - 1), 1000); return () => clearTimeout(t); }, [wait]);
@@ -37,11 +38,12 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
     if (step === 1 && code.length !== 6) return setError(tr('Enter the 6-digit code.'));
     if (step === 2 && name.trim().length < 2) return setError(tr('Enter your name to continue.'));
     if (step === 2 && !role) return setError(tr('Choose whether you are planning a wedding or a vendor.'));
+    if (step === 2 && !accept) return setError(tr('Please accept the Terms and Privacy Policy to create an account.'));
     setBusy(true);
     try {
       await setBase(server);
       if (step === 0) { await sendOtp(); return; }
-      const r = await api('/auth/verify', 'POST', step === 2 ? { phone, otp: code, role, name: name.trim() } : { phone, otp: code });
+      const r = await api('/auth/verify', 'POST', step === 2 ? { phone, otp: code, role, name: name.trim(), accept_terms: true } : { phone, otp: code });
       if (r.needsProfile) { setStep(2); return; }
       await setToken(r.token); onDone({ isNew: step === 2, role: r.user?.role === 'vendor' ? 'vendor' : 'couple' });
     } catch (e: any) {
@@ -100,6 +102,11 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
                 <View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500' }}>{tr(title)}</Text><M>{tr(detail)}</M></View>
                 <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? C.primary : C.faint, alignItems: 'center', justifyContent: 'center' }}>{on ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary }} /> : null}</View>
               </Pressable>); })}
+            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accept }} accessibilityLabel={tr('I agree to the Terms and Privacy Policy')} onPress={() => { setAccept(!accept); setError(''); }} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 4, minHeight: 44 }}>
+              <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: accept ? C.primary : C.faint, backgroundColor: accept ? C.primary : C.card, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>{accept ? <Icon name="check" size={15} color="#fff" strokeWidth={3} /> : null}</View>
+              <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontSize: 14, lineHeight: 21 }}>{tr('I agree to the Terms and Privacy Policy. Shaadi OS will use my name and mobile number to run my account, and I can export or delete my data any time.')}</Text>
+            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 16, marginBottom: 12, paddingLeft: 36 }}><LegalLink path="/terms" label={tr('Terms')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} /></View>
           </> : null}
 
           {!!error && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text>}

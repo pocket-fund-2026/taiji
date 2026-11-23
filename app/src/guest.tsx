@@ -56,6 +56,6 @@ export function GuestProfile({ navigation }: any) {
       <M style={{ marginTop: 4 }}>{tr('Sign in to plan your wedding, save vendors and send enquiries. Vendors sign in here too.')}</M>
       <Btn title={tr('Sign in or create an account')} onPress={() => navigation.navigate('SignIn')} />
     </Card>
-    <M style={{ marginTop: 16 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. Booking Protection and escrow do not move real money.')}</M>
+    <M style={{ marginTop: 16 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. No real money moves; held payments are shown for demonstration only.')}</M>
   </ScrollView>;
 }

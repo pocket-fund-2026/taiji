@@ -4,7 +4,13 @@ Prepared 23 November 2026 from a review of the code, the app and the live demo s
 
 Stage key: **S1** before any real users, **S2** before real money moves, **S3** before App Store / Play submission.
 
-## 0. Live issues on the demo server today (fix now)
+## Status after the 23 November remediation
+
+Engineering fixes now in the code and deployed: no default admin and a private admin code; persistent signing secret; no OTP hint from the API; wrong-code rate limit; restricted CORS and security headers; consent and notice at sign-up with version logging; full draft privacy, terms, refund, vendor-terms pages; grievance form with acknowledgement; listing remove, correct and claim requests with a no-re-import list; report and block; admin inbox; seller legal name, address and GSTIN on profiles; "escrow" wording removed from the app, site and terms; verification now requires a recorded basis. See `SECURITY-RUNBOOK.md`.
+
+**Still open because they need a person or a third party, not code:** a domain and TLS (`deploy/Caddyfile` is ready); counsel review of every policy page; the named Grievance Officer and company details (set the environment variables); trademark clearance for "Shaadi OS"; entity, GST registration and the CA's TCS/TDS/invoice treatment; a licensed payment aggregator before any real money; processor agreements; CERT-In log localisation decision; Apple and Google store forms. The original findings below are kept for reference; items 0.1, 0.2 and the engineering rows of sections 1, 4 and 5 are fixed.
+
+## 0. Live issues on the demo server (original findings, now fixed except 0.3 and 0.4)
 
 | # | Issue | Evidence | Fix |
 |---|---|---|---|

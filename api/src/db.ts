@@ -24,7 +24,7 @@ export const run = (s: string, ...a: any[]) => db.prepare(s).run(...a);
 // Seed vendor accounts use phones 9000000001 to 9000000099.
 // Real businesses listed from public information before they join: no owner account, no price, no enquiries.
 // contact_* hold the business contact a listing publishes on its own website (unclaimed listings only).
-for (const [column, type] of [['unclaimed', 'INT DEFAULT 0'], ['website', 'TEXT'], ['source_url', 'TEXT'], ['contact_phone', 'TEXT'], ['contact_whatsapp', 'TEXT'], ['contact_email', 'TEXT'], ['contact_source', 'TEXT']]) {
+for (const [column, type] of [['unclaimed', 'INT DEFAULT 0'], ['website', 'TEXT'], ['source_url', 'TEXT'], ['contact_phone', 'TEXT'], ['contact_whatsapp', 'TEXT'], ['contact_email', 'TEXT'], ['contact_source', 'TEXT'], ['legal_name', 'TEXT'], ['business_address', 'TEXT'], ['gstin', 'TEXT'], ['verified_basis', 'TEXT'], ['verified_at', 'TEXT']]) {
   if (!q('PRAGMA table_info(vendors)').some((c: any) => c.name === column)) db.exec(`ALTER TABLE vendors ADD COLUMN ${column} ${type}`);
 }
 if (!q('PRAGMA table_info(vendors)').some((c: any) => c.name === 'sample')) {

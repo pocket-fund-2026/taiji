@@ -1,3 +1,4 @@
+import { mountLegalPages } from './legal-pages.ts';
 import express from 'express';
 import { mountSiteFeatures } from './site-features.ts';
 // Public web-presence: legal pages, SEO files, landing page, 404, and a spam guard for public POST forms.
@@ -22,7 +23,7 @@ const page = (title: string, description: string, body: string) => `<!doctype ht
 @media(max-width:760px){.grid,.detail-list{grid-template-columns:repeat(2,minmax(0,1fr))}.filters,.planning-form{grid-template-columns:repeat(2,minmax(0,1fr))}.filters button{grid-column:span 2}}
 @media(max-width:600px){.preview{grid-template-columns:1fr;gap:24px}.preview img{max-width:280px;margin:0 auto}.features,.grid,.timeline,.detail-list{grid-template-columns:1fr;gap:10px}.hero{padding:28px 24px}.topbar{align-items:flex-start;flex-direction:column;margin-bottom:24px}.nav{gap:15px}}
 @media(prefers-reduced-motion:reduce){.cta,button{transition:none}.cta:hover,.cta:active,button:hover,button:active{transform:none}}</style></head>
-<body><div class="wrap"><header class="topbar"><a class="brand" href="/" aria-label="Shaadi OS home"><img src="/brand-icon-v3.png" alt="" width="48" height="48">Shaadi OS</a><nav class="nav" aria-label="Main navigation"><a href="/vendors">Vendors</a><a href="/planning">Planning guide</a><a href="/app?browse=1">Open app</a></nav></header>${body}<footer>© ${new Date().getFullYear()} Shaadi OS · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></footer></div></body></html>`;
+<body><div class="wrap"><header class="topbar"><a class="brand" href="/" aria-label="Shaadi OS home"><img src="/brand-icon-v3.png" alt="" width="48" height="48">Shaadi OS</a><nav class="nav" aria-label="Main navigation"><a href="/vendors">Vendors</a><a href="/planning">Planning guide</a><a href="/app?browse=1">Open app</a></nav></header>${body}<footer>© ${new Date().getFullYear()} Shaadi OS · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/refunds">Refunds</a> · <a href="/vendor-terms">Vendors</a> · <a href="/grievance">Grievance</a> · <a href="/remove-listing">Remove a listing</a></footer></div></body></html>`;
 
 // very small in-memory IP rate limiter for public forms (no login), resets per window
 const hits = new Map<string, number[]>();
@@ -52,24 +53,14 @@ export function mountSiteEarly(app: express.Express) {
 // mount last, after API + extras routes: legal/landing pages + the 404 catch-all
 export function mountSite(app: express.Express) {
   app.get('/robots.txt', (_q, r) => r.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /api\nDisallow: /w\nDisallow: /rsvp\nSitemap: ' + SITE + '/sitemap.xml\n'));
-  app.get('/sitemap.xml', (_q, r) => r.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/vendors', '/planning', '/privacy', '/terms'].map(p => `<url><loc>${SITE}${p}</loc></url>`).join('')}</urlset>`));
+  app.get('/sitemap.xml', (_q, r) => r.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/vendors', '/planning', '/privacy', '/refunds', '/vendor-terms', '/grievance', '/remove-listing', '/terms'].map(p => `<url><loc>${SITE}${p}</loc></url>`).join('')}</urlset>`));
   app.get('/', (_q, r) => r.send(page('Shaadi OS | Wedding vendors and planning in Maharashtra',
     'Compare wedding venues, caterers, photographers and mehndi artists in Mumbai, Pune, Nashik and Nagpur, and plan the wedding in one app.',
     `<main><section class="hero"><h1>Find vendors and plan your wedding</h1><p>Compare venues, caterers, photographers and mehndi artists in Mumbai, Pune, Nashik and Nagpur, and keep your checklist, budget and guest list in the same app.</p><div class="inline-actions"><a class="cta" href="/vendors">Browse wedding vendors</a><a class="cta outline" style="border-color:#F3E8D1;color:#F3E8D1;background:transparent" href="/planning">Preview your plan</a></div></section>
      <section class="preview" aria-labelledby="preview-title"><img src="/plan-preview.png" width="390" height="844" loading="lazy" alt="Plan overview in the Shaadi OS app: a countdown to the wedding, each vendor service with its booking stage, and the start of a month-by-month timeline"><div><h2 id="preview-title">The whole wedding on one screen</h2><p>Each service, from the venue to the pandit, shows whether it is shortlisted, enquired or booked, and how its cost compares with your budget. Below it, a timeline runs month by month to the wedding day with your ceremonies and tasks in date order.</p><p>Families can shortlist vendors together, and guests RSVP through their own invitation link.</p></div></section>
      <p class="note">Have an invitation from a couple? Open your personal invitation link to RSVP.</p><p class="note">Demo preview. Listings may contain sample data; OTP and payments are simulated. No real money is transferred.</p></main>`)));
   mountSiteFeatures(app, page);
-  app.get('/privacy', (_q, r) => r.send(page('Privacy Policy | Shaadi OS', 'How Shaadi OS collects, uses and protects your data under India’s DPDP Act.',
-    `<h1>Privacy Policy</h1><p style="font-family:sans-serif;color:#8A7680;font-size:12px">Placeholder draft: have a lawyer review before launch.</p>
-     <p>We collect the minimum data needed to run bookings: your name, phone number, wedding details and messages with vendors. Payments in this demo are simulated; no card data is stored.</p>
-     <p>Under India's Digital Personal Data Protection (DPDP) Act, you can export or delete your data any time from Profile → Privacy, and manage marketing consent there.</p>
-     <p>Phone numbers and UPI IDs are hidden in chat until a booking is confirmed, to prevent off-platform leakage and protect you from fraud.</p>
-     <p>Questions or grievances: <a href="mailto:grievance@shaadios.example">grievance@shaadios.example</a> (placeholder: set your real officer contact).</p>`)));
-  app.get('/terms', (_q, r) => r.send(page('Terms & Conditions | Shaadi OS', 'The terms that govern using Shaadi OS to discover, book and pay wedding vendors.',
-    `<h1>Terms & Conditions</h1><p style="font-family:sans-serif;color:#8A7680;font-size:12px">Placeholder draft: have a lawyer review before launch.</p>
-     <p>Shaadi OS connects couples with independent wedding vendors. Vendors are responsible for the services they deliver; Shaadi OS facilitates discovery, communication, escrow-style payments and dispute support.</p>
-     <p>Booking Protection holds milestone payments until you confirm the work is complete, then releases funds to the vendor minus the platform commission.</p>
-     <p>Misuse (including circumventing in-app payments, harassment or fraudulent listings) may result in account suspension. GST and applicable taxes are charged as shown at checkout.</p>`)));
+  mountLegalPages(app, page);
   // catch-all 404 for anything not handled above (after all real routes are mounted)
   app.use((req, res) => {
     if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });

@@ -1,5 +1,6 @@
 import { Overview, TaskManager, BudgetManager, WeddingSettings } from './planner';
 import { tr } from './i18n';
+import { ReportBox, LegalLink } from './safety';
 import { Events, Family, ShortlistTab, InviteTab } from './more';
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { FlatList, ScrollView, Text, View, useWindowDimensions, RefreshControl, Linking, KeyboardAvoidingView, Platform, Pressable, Share } from 'react-native';
@@ -63,13 +64,19 @@ export function VendorScreen({ route, navigation }: any) {
           </View>
           : <View style={{ flexDirection: 'row', backgroundColor: C.okSoft, borderRadius: 12, padding: 12, marginTop: 16 }}><Icon name="shield" size={18} color={C.ok} /><M style={{ flex: 1, marginLeft: 8, color: C.ink }}>{tr('Booking Protection: you pay in milestones and each one is held until you release it.')}</M></View>}
       </Rise>
+      {v.legal_name || v.business_address || v.gstin ? <Card style={{ marginTop: 16 }}><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 17, color: C.ink }}>{tr('Business details')}</Text>
+        {v.legal_name ? <M style={{ marginTop: 6 }}>{tr('Legal name')}: {v.legal_name}</M> : null}{v.business_address ? <M>{tr('Address')}: {v.business_address}</M> : null}{v.gstin ? <M>GSTIN: {v.gstin}</M> : null}</Card> : null}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
+        {!guest ? <ReportBox kind="vendor" id={v.id} label={tr('Report this listing')} /> : null}
+        {v.unclaimed ? <LegalLink path="/remove-listing" label={tr('Your business? Remove or claim this listing')} /> : null}
+      </View>
       {!guest ? <ChooseVendor vendor={v} /> : null}
       {v.unclaimed ? null : <>
       <VendorCatalog vendor={v} />
       <H style={{ marginTop: 28 }}>{tr('Reviews')}</H>
       {v.reviewList.length ? v.reviewList.map((r: any, i: number) => <Rise key={i} i={i}><Card>
         <View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ fontWeight: '500', color: C.ink }}>{r.name}</Text><Stars n={r.rating} /></View>
-        {r.text ? <M style={{ marginTop: 4 }}>{r.text}</M> : null}</Card></Rise>)
+        {r.text ? <M style={{ marginTop: 4 }}>{r.text}</M> : null}{!guest && r.id ? <View style={{ flexDirection: 'row', marginTop: 4 }}><ReportBox kind="review" id={r.id} /></View> : null}</Card></Rise>)
         : <Empty icon="star" title={tr('No reviews yet')} text={tr('Only couples who booked and paid through Shaadi OS can review, so every review here is from a real booking.')} />}
       </>}
     </ScrollView>

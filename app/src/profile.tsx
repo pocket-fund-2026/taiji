@@ -8,6 +8,7 @@ import { Icon, IconName } from './icons';
 import { categoryLabel } from './marketplace';
 import { useLoad } from './couple';
 import { Admin } from './more';
+import { LegalLink } from './safety';
 import { disableReminders, enableReminders, remindersEnabled } from './reminders';
 
 const VERSION: string = require('../app.json').expo.version;
@@ -70,7 +71,7 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
   const consent = (granted: boolean) => api('/consent', 'POST', { purpose: 'marketing', granted }).then(() => setMarketing(granted)).catch(err);
   const exportData = async () => { try { const d = await api('/my-data'); await Share.share({ message: JSON.stringify(d, null, 1) }); } catch (e) { err(e); } };
   const deleteData = async () => {
-    if (await confirm(tr('Delete your account data?'), tr('This removes your profile, wedding plans and messages. Bookings with money in escrow are kept until they settle. This cannot be undone.'), tr('Delete'), true))
+    if (await confirm(tr('Delete your account data?'), tr('This removes your profile, wedding plans and messages. Booking and payment records are kept as the law requires. This cannot be undone.'), tr('Delete'), true))
       api('/my-data', 'DELETE').then(onLogout).catch(err);
   };
   const role = members?.role && members.role !== 'owner' ? tr(members.role === 'editor' ? 'Editor' : members.role === 'budget_viewer' ? 'Budget viewer' : 'Viewer') : null;
@@ -133,7 +134,8 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
         <View style={{ flexDirection: 'row' }}><Chip label={tr('Allow')} on={marketing === true} onPress={() => consent(true)} /><Chip label={tr('Don’t allow')} on={marketing === false} onPress={() => consent(false)} /></View>
         <Btn small kind="quiet" icon="share" title={tr('Export my data')} onPress={exportData} />
         <Btn small kind="ghost" title={tr('Delete my account data')} onPress={deleteData} />
-        <M style={{ marginTop: 8 }}>{tr('Grievance officer')}: grievance@shaadios.example {tr('(placeholder, set before launch)')}</M>
+        <M style={{ marginTop: 8 }}>{tr('Have a complaint or a privacy request? We acknowledge within 48 hours and resolve within a month.')}</M>
+        <LegalLink path="/grievance" label={tr('Raise a grievance')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} /><LegalLink path="/terms" label={tr('Terms of Use')} /><LegalLink path="/refunds" label={tr('Cancellation and Refund Policy')} />
       </Row>
     </Section>
 
@@ -141,7 +143,7 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
 
     <Section title={tr('About')}>
       <Row first icon="seal" label="Shaadi OS" value={`${tr('Version')} ${VERSION}`} />
-      <M style={{ paddingBottom: 12 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. Booking Protection and escrow do not move real money.')}</M>
+      <M style={{ paddingBottom: 12 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. No real money moves; held payments are shown for demonstration only.')}</M>
     </Section>
 
     <View style={{ marginTop: 24 }}><Btn kind="ghost" icon="logout" title={tr('Log out')} onPress={onLogout} /></View>

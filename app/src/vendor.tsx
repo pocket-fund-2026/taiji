@@ -13,7 +13,7 @@ export function Payouts() {
     <Rise><Card>
       <M>{tr('Released to you')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 28, color: C.ok, marginTop: 2 }}>{inr(p.released_paise)}</Text><M>{tr('After the platform fee')}</M>
       <View style={{ height: 1, backgroundColor: C.line, marginVertical: 12 }} />
-      <View style={s.row}><View><M>{tr('Held in escrow')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink, marginTop: 2 }}>{inr(p.in_escrow_paise)}</Text></View>
+      <View style={s.row}><View><M>{tr('Held (demo)')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink, marginTop: 2 }}>{inr(p.in_escrow_paise)}</Text></View>
         <M style={{ maxWidth: '50%', textAlign: 'right' }}>{tr('Paid out as each couple releases a milestone')}</M></View></Card></Rise>
     <H style={{ fontSize: 17, marginTop: 12 }}>{tr('Payout history')}</H>
     {p.rows.length ? p.rows.map((r: any, i: number) => <Rise key={r.id} i={i}><Card><View style={s.row}>
@@ -24,10 +24,10 @@ export function Payouts() {
 const CATS = ['photographer', 'makeup', 'mehndi', 'decor', 'venue', 'caterer', 'dj', 'pandit'];
 const CAT_LABEL: Record<string, string> = { photographer: 'Photography', makeup: 'Makeup', mehndi: 'Mehndi', decor: 'Decor', venue: 'Venue', caterer: 'Catering', dj: 'DJ & music', pandit: 'Pandit' };
 export function VendorProfile({ onSaved }: any) {
-  const [me] = useLoad<any>('/me', null); const [f, setF] = useState({ name: '', category: 'photographer', city: '', locality: '', price: '', description: '' }); const [saved, setSaved] = useState(false);
-  useEffect(() => { const v = me?.vendor; if (v) setF({ name: v.name, category: v.category, city: v.city, locality: v.locality || '', price: String(v.start_paise / 100), description: v.description || '' }); }, [me]);
+  const [me] = useLoad<any>('/me', null); const [f, setF] = useState({ name: '', category: 'photographer', city: '', locality: '', price: '', description: '', legal_name: '', business_address: '', gstin: '' }); const [saved, setSaved] = useState(false);
+  useEffect(() => { const v = me?.vendor; if (v) setF({ name: v.name, category: v.category, city: v.city, locality: v.locality || '', price: String(v.start_paise / 100), description: v.description || '', legal_name: v.legal_name || '', business_address: v.business_address || '', gstin: v.gstin || '' }); }, [me]);
   const set = (k: string, v: string) => { setSaved(false); setF({ ...f, [k]: v }); };
-  const save = async () => { try { await api('/vendor', 'PUT', { name: f.name, category: f.category, city: f.city, locality: f.locality, start_paise: Math.round(+f.price * 100), description: f.description }); setSaved(true); onSaved?.(); } catch (e) { err(e); } };
+  const save = async () => { try { await api('/vendor', 'PUT', { name: f.name, category: f.category, city: f.city, locality: f.locality, start_paise: Math.round(+f.price * 100), description: f.description, legal_name: f.legal_name, business_address: f.business_address, gstin: f.gstin }); setSaved(true); onSaved?.(); } catch (e) { err(e); } };
   const fee = ['venue', 'caterer'].includes(f.category) ? 3 : 6;
   return (<ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
     {me && !me.vendor && !saved ? <View style={{ backgroundColor: C.tint, borderRadius: 12, padding: 16, marginBottom: 16 }}><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink }}>{tr('Set up your storefront')}</Text><M style={{ marginTop: 4, color: C.ink }}>{tr('Add your business name, service, city and starting price. Couples can find you as soon as you save.')}</M></View> : null}
@@ -38,6 +38,10 @@ export function VendorProfile({ onSaved }: any) {
     <View style={{ flexDirection: 'row', gap: 12 }}><View style={{ flex: 1 }}><Input label={tr('City')} value={f.city} onChangeText={v => set('city', v)} placeholder="City" /></View>
       <View style={{ flex: 1 }}><Input label={tr('Locality')} value={f.locality} onChangeText={v => set('locality', v)} placeholder="Area" /></View></View>
     <Input label={tr('Starting price (₹), shown publicly')} value={f.price} onChangeText={v => set('price', v)} keyboardType="number-pad" />
+    <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 8 }]}>{tr('Business details shown to couples')}</Text>
+    <Input label={tr('Legal name of the business')} value={f.legal_name} onChangeText={v => set('legal_name', v)} />
+    <Input label={tr('Business address')} value={f.business_address} onChangeText={v => set('business_address', v)} />
+    <Input label={tr('GSTIN (if registered)')} value={f.gstin} onChangeText={v => set('gstin', v.toUpperCase())} autoCapitalize="characters" maxLength={15} />
     <Input label={tr('About')} value={f.description} onChangeText={v => set('description', v)} multiline placeholder={tr('What you offer, your style, what is included')} style={{ minHeight: 96, textAlignVertical: 'top' }} />
     <Btn title={tr('Save storefront')} onPress={save} />
     {saved && <Rise style={{ alignItems: 'center', marginTop: 8 }}><Tag tone="ok" icon="check" label={tr('Saved. Couples see this now.')} /></Rise>}

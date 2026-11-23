@@ -1,0 +1,11 @@
+# HTTPS in front of the API. Point an A record for your domain at this server first, then:
+#   apt install caddy   (ports 80 and 443 must be open: ufw allow 80,443/tcp)
+#   replace app.example.com below with your domain and save this file as /etc/caddy/Caddyfile
+#   systemctl reload caddy
+# Caddy gets and renews the certificate automatically. Then set CORS_ORIGINS=https://your-domain and rebuild the apps with
+# EXPO_PUBLIC_API_URL=https://your-domain; after that the iOS cleartext (ATS) exception in app.json can be removed.
+app.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:4600
+	header Strict-Transport-Security "max-age=31536000"
+}

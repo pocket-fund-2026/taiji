@@ -40,7 +40,7 @@ async function transport(path: string, token = '', method = 'GET', body?: unknow
 }
 const request = transport;
 async function login(phone: string) {
-  const r = await request('/api/auth/verify', '', 'POST', { phone, otp: '123456', role: 'couple', name: 'Test couple' });
+  const r = await request('/api/auth/verify', '', 'POST', { phone, otp: '123456', role: 'couple', name: 'Test couple', accept_terms: true });
   assert.equal(r.status, 200); return r.data.token as string;
 }
 before(async () => {
@@ -263,6 +263,85 @@ test('vendor summary counts listings per service and city', async () => {
   assert.ok(pune.total > 0 && pune.total <= all.total);
   assert.equal((await request('/api/vendors/summary?city=Pune&x=1')).status, 200);
   assert.ok(Number.isInteger(all.on_platform) && all.on_platform <= all.total);
+});
+test('sign-up needs accepted terms, logs consent with its version, and does not advertise the demo code', async () => {
+  const otp = await request('/api/auth/otp', '', 'POST', { phone: '9812300555' });
+  assert.equal(otp.status, 200); assert.equal(otp.data.hint, undefined);
+  const refused = await request('/api/auth/verify', '', 'POST', { phone: '9812300555', otp: '123456', role: 'couple', name: 'Terms Test' });
+  assert.equal(refused.status, 400); assert.match(refused.data.error, /accept the Terms/);
+  assert.equal(one('SELECT 1 x FROM users WHERE phone=?', '9812300555'), undefined);
+  const ok = await request('/api/auth/verify', '', 'POST', { phone: '9812300555', otp: '123456', role: 'couple', name: 'Terms Test', accept_terms: true });
+  assert.equal(ok.status, 200);
+  const rows = db.prepare('SELECT purpose FROM consents WHERE user_id=?').all(ok.data.user.id).map((r: any) => r.purpose).sort();
+  assert.deepEqual(rows, ['privacy_notice:2026-11-23', 'terms:2026-11-23']);
+});
+test('wrong codes are rate limited per number', async () => {
+  for (let i = 0; i < 8; i++) assert.equal((await request('/api/auth/verify', '', 'POST', { phone: '9812300666', otp: '000000' })).status, 401);
+  assert.equal((await request('/api/auth/verify', '', 'POST', { phone: '9812300666', otp: '123456', role: 'couple', name: 'Locked', accept_terms: true })).status, 429);
+});
+test('there is no default admin and admin numbers come only from configuration', async () => {
+  const { adminPhones } = await import('./config.ts');
+  assert.deepEqual(adminPhones({}), []); assert.deepEqual(adminPhones({ NODE_ENV: 'development' }), []);
+  assert.deepEqual(adminPhones({ ADMIN_PHONES: ' 9811111111, 9822222222 ' }), ['9811111111', '9822222222']);
+});
+test('a signing secret is kept across restarts and CORS only admits known origins', async () => {
+  const { loadSecret, corsOrigins } = await import('./config.ts'); const { mkdtempSync, readFileSync, statSync } = await import('node:fs'); const { join } = await import('node:path'); const { tmpdir } = await import('node:os');
+  const dir = mkdtempSync(join(tmpdir(), 'secret-')); const env = { DB_PATH: join(dir, 'x.db') };
+  const first = loadSecret(env); assert.equal(loadSecret(env), first); assert.equal(first.length, 64); assert.equal(readFileSync(join(dir, '.jwt-secret'), 'utf8'), first);
+  assert.equal(statSync(join(dir, '.jwt-secret')).mode & 0o077, 0, 'secret file is private');
+  assert.equal(loadSecret({ JWT_SECRET: 'fixed' }), 'fixed');
+  const check = (origin: string | undefined, env = {}) => { let ok: boolean | undefined; corsOrigins(env)(origin, (_e, v) => { ok = v; }); return ok; };
+  assert.equal(check(undefined), true); assert.equal(check('http://localhost:8081'), true); assert.equal(check('https://evil.example'), false);
+  assert.equal(check('https://app.example', { CORS_ORIGINS: 'https://app.example' }), true);
+});
+test('listing removal, grievance, report and block flows', async () => {
+  const admin = await login('9999999999');
+  const ins = db.prepare("INSERT INTO vendors(user_id,name,city,category,unclaimed,sample) VALUES(NULL,'Removal Test Studio','Pune','photographer',1,0)").run();
+  const listing = one('SELECT id,name,city FROM vendors WHERE id=?', Number(ins.lastInsertRowid));
+  assert.equal((await request('/api/listing-requests', '', 'POST', { kind: 'remove', name: 'Owner', contact: 'not a contact' })).status, 400);
+  const lr = await request('/api/listing-requests', '', 'POST', { vendor_id: listing.id, kind: 'remove', name: 'Owner One', contact: 'owner@example.com', message: 'Please remove' });
+  assert.equal(lr.status, 201); assert.match(lr.data.reference, /^L-\d{6}$/);
+  const gv = await request('/api/grievances', '', 'POST', { name: 'Asha', contact: '9812300001', category: 'booking', message: 'The vendor did not reply for a week' });
+  assert.equal(gv.status, 201); assert.match(gv.data.reference, /^G-\d{6}$/);
+  assert.ok(one('SELECT ack_at FROM grievances WHERE id=1').ack_at, 'grievance is acknowledged on receipt');
+  assert.equal((await request('/api/admin/inbox', couple)).status, 403);
+  const inbox = (await request('/api/admin/inbox', admin)).data; assert.equal(inbox.listing_requests.length, 1); assert.equal(inbox.grievances.length, 1);
+  const bad = await request(`/api/admin/listing-requests/${inbox.listing_requests[0].id}/resolve`, admin, 'POST', { action: 'close' }); assert.equal(bad.status, 400);
+  assert.equal((await request(`/api/admin/listing-requests/${inbox.listing_requests[0].id}/resolve`, admin, 'POST', { action: 'remove', note: 'Owner confirmed' })).status, 200);
+  assert.equal(one('SELECT 1 x FROM vendors WHERE id=?', listing.id), undefined, 'listing is removed');
+  assert.ok(one('SELECT 1 x FROM listing_suppressions WHERE name=? AND city=?', listing.name, listing.city), 'and will not be re-imported');
+  assert.equal((await request(`/api/admin/listing-requests/${inbox.listing_requests[0].id}/resolve`, admin, 'POST', { action: 'close', note: 'again' })).status, 409);
+  const sample = one('SELECT id FROM vendors WHERE sample=1 LIMIT 1');
+  const lr2 = await request('/api/listing-requests', '', 'POST', { vendor_id: sample.id, kind: 'remove', name: 'Someone', contact: '9812300002' });
+  assert.equal((await request(`/api/admin/listing-requests/${Number(lr2.data.reference.slice(2))}/resolve`, admin, 'POST', { action: 'remove', note: 'try' })).status, 409, 'only unclaimed listings can be removed');
+  assert.equal((await request(`/api/admin/grievances/${inbox.grievances[0].id}/resolve`, admin, 'POST', { resolution: 'Called the vendor' })).status, 200);
+  // reports and blocks
+  assert.equal((await request('/api/reports', '', 'POST', { kind: 'vendor', target_id: 1, reason: 'Fake business' })).status, 401);
+  assert.equal((await request('/api/reports', couple, 'POST', { kind: 'vendor', target_id: 1, reason: 'Looks like a fake business' })).status, 201);
+  assert.equal((await request('/api/reports', couple, 'POST', { kind: 'vendor', target_id: 99999, reason: 'Does not exist' })).status, 404);
+  const rep = (await request('/api/admin/inbox', admin)).data.reports; assert.equal(rep.length, 1);
+  assert.equal((await request(`/api/admin/reports/${rep[0].id}/resolve`, admin, 'POST', { resolution: 'Checked, genuine' })).status, 200);
+  const me = (await request('/api/me', outsider)).data.user.id;
+  assert.equal((await request('/api/blocks', couple, 'POST', { user_id: me })).status, 200);
+  assert.deepEqual((await request('/api/blocks', couple)).data.map((b: any) => b.user_id), [me]);
+  assert.equal((await request(`/api/blocks/${me}`, couple, 'DELETE')).status, 200);
+  assert.equal((await request('/api/blocks', couple, 'POST', { user_id: (await request('/api/me', couple)).data.user.id })).status, 400);
+});
+test('vendors must say what they checked before being verified, and legal details are validated', async () => {
+  const admin = await login('9999999999');
+  const joined = one("SELECT id FROM vendors WHERE sample=0 AND unclaimed=0 LIMIT 1");
+  if (joined) { assert.equal((await request(`/api/admin/vendors/${joined.id}/verify`, admin, 'POST', {})).status, 400); }
+  const v = await login('9812300777'); await request('/api/auth/verify', '', 'POST', { phone: '9812300777', otp: '123456' });
+  const vt = (await request('/api/auth/verify', '', 'POST', { phone: '9812300888', otp: '123456', role: 'vendor', name: 'Legal Vendor', accept_terms: true })).data.token;
+  assert.equal((await request('/api/vendor', vt, 'PUT', { name: 'Legal Vendor', category: 'decor', city: 'Pune', start_paise: 100000, gstin: 'NOT-A-GSTIN' })).status, 400);
+  const saved = await request('/api/vendor', vt, 'PUT', { name: 'Legal Vendor', category: 'decor', city: 'Pune', start_paise: 100000, legal_name: 'Legal Vendor LLP', business_address: '12 MG Road, Pune', gstin: '27AAPFU0939F1ZV' });
+  assert.equal(saved.status, 200); assert.equal(saved.data.legal_name, 'Legal Vendor LLP'); assert.equal(saved.data.gstin, '27AAPFU0939F1ZV');
+  assert.equal((await request(`/api/admin/vendors/${saved.data.id}/verify`, admin, 'POST', { basis: 'GST certificate and phone call' })).status, 200);
+  assert.equal(one('SELECT verified_basis FROM vendors WHERE id=?', saved.data.id).verified_basis, 'GST certificate and phone call');
+});
+test('public legal pages and forms exist', async () => {
+  for (const p of ['/privacy', '/terms', '/refunds', '/vendor-terms', '/grievance', '/remove-listing']) { const r = await transport(p, '', 'GET', undefined, true); assert.equal(r.status, 200, p); assert.ok(!r.data.includes('.example'), p + ' has no placeholder address'); }
+  assert.match((await transport('/grievance', '', 'GET', undefined, true)).data, /<form id="g"/);
 });
 test('roadmap tracks each vendor service and a month-by-month timeline', async () => {
   const r = await request('/api/planner/roadmap', couple);
