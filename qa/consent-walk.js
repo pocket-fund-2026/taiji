@@ -1,0 +1,20 @@
+const { chromium } = require('playwright-core');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await ctx.addInitScript(() => { try { localStorage.setItem('onboarded', '1'); } catch (e) {} });
+  const p = await ctx.newPage(); const errs = [];
+  p.on('pageerror', e => errs.push('pageerror: ' + e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200)); });
+  await p.goto('http://localhost:8082'); await p.waitForTimeout(3500);
+  await p.getByText('Profile', { exact: true }).last().click(); await p.waitForTimeout(800);
+  await p.getByText('Sign in or create an account').first().click(); await p.waitForTimeout(800);
+  await p.locator('input:visible').first().fill('9812399123'); await p.getByText('Send code').click(); await p.waitForTimeout(1200);
+  await p.locator('input:visible').first().fill('123456'); await p.waitForTimeout(2500);
+  await p.locator('input:visible').first().fill('Consent Tester'); await p.getByText('I’m planning a wedding').click(); await p.waitForTimeout(300);
+  await p.getByText('Create account').click(); await p.waitForTimeout(800); await p.screenshot({ path: 'shots/consent-1-refused.png' });
+  console.log('refused text present:', await p.getByText('Please accept the Terms and Privacy Policy to create an account.').count());
+  await p.getByText('I agree to the Terms and Privacy Policy.', { exact: false }).click(); await p.waitForTimeout(300); await p.screenshot({ path: 'shots/consent-2-accepted.png' });
+  await p.getByText('Create account').click(); await p.waitForTimeout(3000); await p.screenshot({ path: 'shots/consent-3-in.png' });
+  console.log(errs.filter(e => !/DevTools|Running application/.test(e)).join('\n') || 'no errors');
+  await b.close();
+})();

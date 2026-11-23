@@ -1,0 +1,23 @@
+const { chromium } = require('playwright-core');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const p = await ctx.newPage(); const errs = [];
+  p.on('pageerror', e => errs.push('pageerror: ' + e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 300)); });
+  p.on('requestfailed', r => errs.push('reqfail: ' + r.url() + ' ' + r.failure()?.errorText));
+  const shot = n => p.screenshot({ path: `shots/ob-${n}.png` });
+  await p.goto('http://localhost:8081'); await p.waitForTimeout(3500); await shot('0-welcome');
+  await p.getByText('Get started', { exact: false }).first().click(); await p.waitForTimeout(500); await shot('1-role');
+  await p.getByText('I’m planning a wedding').click(); await p.waitForTimeout(300); await shot('1b-role-picked');
+  await p.getByText('Continue', { exact: false }).last().click(); await p.waitForTimeout(500);
+  await p.getByText('Pune', { exact: true }).click(); await p.waitForTimeout(300); await shot('2-city');
+  await p.getByText('Continue', { exact: false }).last().click(); await p.waitForTimeout(500);
+  await p.getByText('Venue', { exact: true }).click(); await p.getByText('Photography', { exact: true }).click(); await p.waitForTimeout(300); await shot('3-services');
+  await p.getByText('Continue', { exact: false }).last().click(); await p.waitForTimeout(500);
+  await p.getByText('3 to 6 months').click(); await p.waitForTimeout(300); await shot('4-timing');
+  await p.getByText('Continue', { exact: false }).last().click(); await p.waitForTimeout(800); await shot('5-done');
+  await p.getByText('See vendors', { exact: false }).click(); await p.waitForTimeout(2500); await shot('6-home');
+  await p.screenshot({ path: 'shots/ob-6-home-full.png', fullPage: true });
+  console.log(errs.filter(e => !/DevTools|Running application/.test(e)).join('\n') || 'no errors');
+  await b.close();
+})();
