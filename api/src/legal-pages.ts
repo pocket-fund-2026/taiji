@@ -6,11 +6,23 @@ const esc = (v: string) => v.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt
 const env = (k: string) => (process.env[k] || '').trim();
 const draft = `<p class="note" style="background:#F3E9E0;padding:10px 14px;border-radius:8px">Working draft, version ${POLICY_VERSION}. Pending review by counsel before public launch. This is a demo build: payments, sign-in codes and WhatsApp are simulated.</p>`;
 
+// Every detail the Consumer Protection (E-Commerce) Rules and the IT Rules expect on the page: the operating company, its registered address,
+// registration numbers, and the named Grievance Officer with a way to reach them. Values come from the environment; unset ones say so plainly.
 function officer() {
-  const name = env('GRIEVANCE_OFFICER_NAME'); const email = env('GRIEVANCE_OFFICER_EMAIL'); const company = env('COMPANY_NAME'); const address = env('COMPANY_ADDRESS');
+  const e = (k: string) => esc(env(k)); const has = (k: string) => !!env(k);
+  const pending = '<em>to be published before public launch</em>';
+  const rows: [string, string][] = [
+    ['Operating company', has('COMPANY_NAME') ? e('COMPANY_NAME') : pending],
+    ['Registered office', has('COMPANY_ADDRESS') ? e('COMPANY_ADDRESS') : pending],
+    ['CIN / LLPIN', has('COMPANY_CIN') ? e('COMPANY_CIN') : pending],
+    ['GSTIN', has('COMPANY_GSTIN') ? e('COMPANY_GSTIN') : pending],
+    ['Grievance Officer', has('GRIEVANCE_OFFICER_NAME') ? `${e('GRIEVANCE_OFFICER_NAME')}${has('GRIEVANCE_OFFICER_TITLE') ? ', ' + e('GRIEVANCE_OFFICER_TITLE') : ''}` : pending],
+    ['Officer email', has('GRIEVANCE_OFFICER_EMAIL') ? `<a href="mailto:${e('GRIEVANCE_OFFICER_EMAIL')}">${e('GRIEVANCE_OFFICER_EMAIL')}</a>` : pending],
+    ['Officer phone and hours', has('GRIEVANCE_OFFICER_PHONE') ? e('GRIEVANCE_OFFICER_PHONE') : pending],
+  ];
   return `<h2>Who we are and who to contact</h2>
-  <p><strong>${company ? esc(company) : 'Operating company: to be published before public launch'}</strong>${address ? `, ${esc(address)}` : ''}.</p>
-  <p>Grievance Officer: ${name ? esc(name) : 'to be named before public launch'}${email ? `, <a href="mailto:${esc(email)}">${esc(email)}</a>` : ''}. You can always use the <a href="/grievance">grievance form</a>: it works today, gives you a reference number, and we acknowledge within 48 hours and resolve within one month.</p>`;
+  <table style="border-collapse:collapse;font-family:system-ui,sans-serif;font-size:14px;max-width:640px">${rows.map(([k, v]) => `<tr><th style="text-align:left;padding:6px 16px 6px 0;vertical-align:top;color:#75656B;font-weight:600">${k}</th><td style="padding:6px 0">${v}</td></tr>`).join('')}</table>
+  <p>You can always use the <a href="/grievance">grievance form</a>: it works today, gives you a reference number, and we acknowledge within 48 hours and resolve within one month.</p>`;
 }
 
 const form = (id: string, fields: string, endpoint: string, extra = '') => `<form id="${id}" class="planning-form" style="grid-template-columns:1fr;max-width:560px" novalidate>${fields}<input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button type="submit">Send</button><p id="${id}-out" role="status" class="note"></p></form>

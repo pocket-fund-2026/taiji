@@ -343,6 +343,13 @@ test('public legal pages and forms exist', async () => {
   for (const p of ['/privacy', '/terms', '/refunds', '/vendor-terms', '/grievance', '/remove-listing']) { const r = await transport(p, '', 'GET', undefined, true); assert.equal(r.status, 200, p); assert.ok(!r.data.includes('.example'), p + ' has no placeholder address'); }
   assert.match((await transport('/grievance', '', 'GET', undefined, true)).data, /<form id="g"/);
 });
+test('legal pages show the company and Grievance Officer details when configured', async () => {
+  const keys = { COMPANY_NAME: 'Test Weddings Pvt Ltd', COMPANY_ADDRESS: '1 Test Road, Pune 411001', COMPANY_CIN: 'U12345MH2026PTC000001', GRIEVANCE_OFFICER_NAME: 'Asha Rao', GRIEVANCE_OFFICER_EMAIL: 'asha@test.invalid' };
+  const before = await transport('/privacy', '', 'GET', undefined, true); assert.match(before.data, /to be published before public launch/);
+  Object.assign(process.env, keys);
+  try { for (const p of ['/privacy', '/terms', '/grievance']) { const r = await transport(p, '', 'GET', undefined, true); for (const v of Object.values(keys)) assert.ok(r.data.includes(v.replace('&', '&amp;')), `${p} shows ${v}`); } }
+  finally { for (const k of Object.keys(keys)) delete process.env[k]; }
+});
 test('roadmap tracks each vendor service and a month-by-month timeline', async () => {
   const r = await request('/api/planner/roadmap', couple);
   assert.equal(r.status, 200);
