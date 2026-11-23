@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { db, q, one, run } from './db.ts';
+import { normEmail } from './mailer.ts';
 import { UPLOAD_DIR, imageType } from './catalog.ts';
 import { dateSchema } from './planner.ts';
 
@@ -74,12 +75,13 @@ export function mountTraditions(app: any, auth: any, wrap: any, ctx: { W: (req: 
   const created = (res: any, r: any) => res.status(201).json({ id: Number(r.lastInsertRowid) });
 
   // Guests: edit a household, its food preference and whether the card has been given.
-  const guestPatch = z.object({ name: z.string().trim().min(1).max(120).optional(), phone: phone.optional(), side: z.enum(['bride', 'groom']).optional(),
+  const guestPatch = z.object({ email: z.string().trim().email().max(254).or(z.literal('')).nullable().optional(), name: z.string().trim().min(1).max(120).optional(), phone: phone.optional(), side: z.enum(['bride', 'groom']).optional(),
     party: z.number().int().min(1).max(50).optional(), meal: z.enum(DIETS).nullable().optional(), card_given: z.boolean().optional(), card_by: text(80) });
   app.patch('/api/guests/:id', auth, wrap((req: any, res: any) => { const w = editable(req); const g = owned('guests', req.params.id, w); const b = guestPatch.parse(req.body);
     const given = b.card_given ?? !!g.card_given;
     run('UPDATE guests SET name=?,phone=?,side=?,party=?,meal=?,card_given=?,card_by=?,card_on=? WHERE id=?', b.name ?? g.name, b.phone ?? g.phone, b.side ?? g.side, b.party ?? g.party ?? 1,
       b.meal === undefined ? g.meal : b.meal, given ? 1 : 0, given ? (b.card_by ?? g.card_by ?? '') : '', given ? (g.card_given ? g.card_on : new Date().toISOString().slice(0, 10)) : null, g.id);
+    if (b.email !== undefined) run('UPDATE guests SET email=? WHERE id=?', b.email ? normEmail(b.email) : null, g.id);
     res.json(one('SELECT * FROM guests WHERE id=?', g.id)); }));
   app.delete('/api/guests/:id', auth, wrap((req: any, res: any) => { const w = editable(req); owned('guests', req.params.id, w);
     for (const t of ['guest_events', 'seat_assignments']) run(`DELETE FROM ${t} WHERE guest_id=?`, req.params.id);

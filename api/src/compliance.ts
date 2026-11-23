@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { db, q, one, run } from './db.ts';
 import { adminPhones, POLICY_VERSION } from './config.ts';
+import { notify, compose, isEmail } from './mailer.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor INT, action TEXT, detail TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
@@ -17,6 +18,12 @@ const fail = (status: number, message: string) => Object.assign(new Error(messag
 const contactRule = z.string().trim().min(5, 'Add a phone number or email so we can reply').max(120).refine(v => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) || /^\+?[\d\s-]{10,15}$/.test(v), 'Enter a valid phone number or email');
 export const isSuppressed = (name: string, city: string) => !!one('SELECT 1 x FROM listing_suppressions WHERE name=? AND city=?', name, city);
 export const ref = (prefix: string, id: number) => `${prefix}-${String(id).padStart(6, '0')}`;
+// Tell the grievance officer about a new submission, and acknowledge the sender when they gave an email address.
+function mailIntake(kind: string, reference: string, b: any) {
+  const officer = process.env.GRIEVANCE_OFFICER_EMAIL;
+  if (isEmail(officer)) { const m = compose(`New ${kind} ${reference}`, [`From: ${b.name} (${b.contact})`, ...(b.category ? [`Category: ${b.category}`] : []), String(b.message || '').slice(0, 2000)], undefined, 'Internal notification from Shaadi OS.'); notify({ to: officer, subject: `[${reference}] New ${kind}`, text: m.text, html: m.html, template: `${kind.replace(' ', '-')}-officer` }); }
+  if (isEmail(b.contact)) { const m = compose(`We received your ${kind}`, [`Your reference is ${reference}.`, 'We acknowledge every request within 48 hours and resolve grievances within one month.'], undefined, 'You are receiving this because you contacted Shaadi OS.'); notify({ to: b.contact, subject: `Shaadi OS: we received your ${kind} (${reference})`, text: m.text, html: m.html, template: `${kind.replace(' ', '-')}-ack` }); }
+}
 
 // Retention limits promised in the privacy policy: security and audit logs 180 days, resolved grievances three years, resolved reports and listing requests one year.
 export function purgeExpired() {
@@ -45,12 +52,14 @@ export function mountCompliance(app: any, auth: any, wrap: any, spamGuard: any) 
     const b = z.object({ vendor_id: z.coerce.number().int().positive().optional(), kind: z.enum(['remove', 'claim', 'correct']), name: z.string().trim().min(2).max(120), contact: contactRule, message: z.string().trim().max(1000).optional() }).parse(req.body);
     if (b.vendor_id && !one('SELECT 1 x FROM vendors WHERE id=?', b.vendor_id)) throw fail(404, 'That listing was not found');
     const r = run('INSERT INTO listing_requests(vendor_id,kind,name,contact,message) VALUES(?,?,?,?,?)', b.vendor_id ?? null, b.kind, b.name, b.contact, b.message || '');
+    mailIntake('listing request', ref('L', Number(r.lastInsertRowid)), { ...b, category: b.kind });
     res.status(201).json({ ok: true, reference: ref('L', Number(r.lastInsertRowid)), note: 'We acknowledge every request within 48 hours.' });
   }));
   // Grievances (Consumer Protection E-Commerce Rules, IT Intermediary Rules): acknowledged on receipt, resolved within a month.
   app.post('/api/grievances', spamGuard(), wrap((req: any, res: any) => {
     const b = z.object({ name: z.string().trim().min(2).max(120), contact: contactRule, category: z.enum(['privacy', 'booking', 'payment', 'vendor', 'content', 'other']), message: z.string().trim().min(10, 'Tell us a little more').max(2000) }).parse(req.body);
     const r = run('INSERT INTO grievances(name,contact,category,message) VALUES(?,?,?,?)', b.name, b.contact, b.category, b.message);
+    mailIntake('grievance', ref('G', Number(r.lastInsertRowid)), b);
     res.status(201).json({ ok: true, reference: ref('G', Number(r.lastInsertRowid)), note: 'We have received your grievance. We will acknowledge it within 48 hours and resolve it within one month.' });
   }));
   // Report and block: required for apps with user-generated content (chat, reviews, vendor profiles).

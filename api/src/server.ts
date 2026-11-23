@@ -2,6 +2,8 @@ import { mountPlanner, dateSchema } from './planner.ts';
 import { instalmentDue } from './organiser.ts';
 import { readRuntimeConfig, loadSecret, corsOrigins, adminPhones, POLICY_VERSION } from './config.ts';
 import { mountCatalog, vendorCatalog } from './catalog.ts';
+import { mailUser, notify, compose, isEmail, normEmail, siteUrl, rupees, mailConfigured } from './mailer.ts';
+import { mountEmailAuth } from './email-auth.ts';
 import { addAfterTasks, vendorDecided } from './traditions.ts';
 import express from 'express'; import cors from 'cors'; import jwt from 'jsonwebtoken'; import { z } from 'zod'; import { randomBytes } from 'node:crypto';
 import { db, q, one, run } from './db.ts'; import { mountExtras, TEMPLATES } from './extras.ts'; import { seed } from './seed.ts'; import { mountSite, mountSiteEarly, spamGuard } from './site.ts'; import { mountCompliance } from './compliance.ts';
@@ -18,6 +20,8 @@ const wrap = (f: any) => (req: any, res: any) => { const report = (e: any) => re
 const fail = (status: number, message: string) => Object.assign(new Error(message), { status });
 const auth = (req: any, _r: any, next: any) => { try { req.user = jwt.verify((req.headers.authorization || '').slice(7), SECRET); next(); } catch { next(fail(401, 'Login required')); } };
 const myVendor = (uid: number) => one('SELECT * FROM vendors WHERE user_id=?', uid);
+const vendorUser = (vid: number) => one('SELECT user_id FROM vendors WHERE id=?', vid)?.user_id as number | undefined;
+const appLink = { label: 'Open Shaadi OS', url: `${siteUrl()}/app?browse=1` };
 const myWedding = (uid: number) => one('SELECT * FROM weddings WHERE owner_id=? ORDER BY id LIMIT 1', uid);
 const commissionBps = (cat: string) => (['venue', 'caterer'].includes(cat) ? 300 : 600);
 const leak = (s: string) => /(\+?91[\s-]?)?[6-9]\d{9}|\b[\w.-]+@[a-z]{2,}\b/i.test(s.replace(/[\s-]/g, ' ').replace(/(\d)\s(?=\d)/g, '$1'));
@@ -52,6 +56,8 @@ app.post('/api/auth/verify', wrap((req: any, res: any) => {
   res.json({ token: jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }), user: u });
 }));
 app.get('/api/me', auth, wrap((req: any, res: any) => res.json({ consent_current: !!one("SELECT 1 x FROM consents WHERE user_id=? AND purpose=? AND granted=1", req.user.id, 'terms:' + POLICY_VERSION), user: one('SELECT * FROM users WHERE id=?', req.user.id), wedding: myWedding(req.user.id) || null, vendor: myVendor(req.user.id) || null })));
+// Email verification and email sign-in (needs SMTP settings; see docs/EMAIL.md).
+mountEmailAuth(app, { auth, wrap, fail, secret: SECRET, sign: (u: any) => jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }) });
 // Profile edits: display name and app language.
 app.patch('/api/me', auth, wrap((req: any, res: any) => {
   const b = z.object({ name: z.string().trim().min(2, 'Enter your name').max(80).optional(), lang: z.enum(['en', 'hi', 'mr', 'ta', 'te', 'bn', 'gu', 'pa', 'kn', 'ml']).optional() }).parse(req.body);
@@ -147,8 +153,29 @@ app.get('/api/budget', auth, wrap((req: any, res: any) => {
 }));
 app.get('/api/guests', auth, wrap((req: any, res: any) => res.json(q('SELECT * FROM guests WHERE wedding_id=? ORDER BY id DESC', W(req).id))));
 app.post('/api/guests', auth, wrap((req: any, res: any) => {
-  const b = z.object({ name: z.string().trim().min(1).max(120), phone: z.string().optional(), side: z.enum(['bride', 'groom']).default('bride'), party: z.number().int().min(1).max(50).default(1), meal: z.enum(['Veg', 'Jain', 'Non-veg', 'Vegan']).nullable().optional() }).parse(req.body);
-  const id = Number(run('INSERT INTO guests(wedding_id,name,phone,side,token,party,meal) VALUES(?,?,?,?,?,?,?)', W(req).id, b.name, b.phone || '', b.side, randomBytes(6).toString('hex'), b.party, b.meal ?? null).lastInsertRowid); res.json({ ok: true, id });
+  const b = z.object({ name: z.string().trim().min(1).max(120), phone: z.string().optional(), email: z.string().trim().email().max(254).or(z.literal('')).optional(), side: z.enum(['bride', 'groom']).default('bride'), party: z.number().int().min(1).max(50).default(1), meal: z.enum(['Veg', 'Jain', 'Non-veg', 'Vegan']).nullable().optional() }).parse(req.body);
+  const id = Number(run('INSERT INTO guests(wedding_id,name,phone,email,side,token,party,meal) VALUES(?,?,?,?,?,?,?,?)', W(req).id, b.name, b.phone || '', b.email ? normEmail(b.email) : null, b.side, randomBytes(6).toString('hex'), b.party, b.meal ?? null).lastInsertRowid); res.json({ ok: true, id });
+}));
+// Email an RSVP invitation to one guest, or to every guest with an email who has not replied. Owner only; a guest is emailed at most once a day.
+const inviteMail = (w: any, g: any) => {
+  const inv = one('SELECT message FROM invites WHERE wedding_id=?', w.id);
+  const title = `You are invited: ${w.title}`;
+  const { text, html } = compose(title, [`Dear ${g.name},`, `${w.title}${w.date ? ' on ' + dateText(w.date) : ''}${w.city ? ' in ' + w.city : ''}.`, ...(inv?.message ? [String(inv.message)] : []), 'Please let us know if you can come.'], { label: 'Reply to the invitation', url: `${siteUrl()}/rsvp/${g.token}` }, `You were invited to ${w.title}. If this reached you by mistake, please ignore it.`);
+  notify({ to: g.email, subject: title, text, html, template: 'guest-invite' });
+  run("UPDATE guests SET email_invited_at=datetime('now') WHERE id=?", g.id);
+};
+const invitable = "email IS NOT NULL AND email!='' AND (email_invited_at IS NULL OR email_invited_at < datetime('now','-1 day'))";
+app.post('/api/guests/:id/email-invite', auth, wrap((req: any, res: any) => {
+  const w = W(req); const g = one('SELECT * FROM guests WHERE id=? AND wedding_id=?', req.params.id, w.id);
+  if (!g) throw fail(404, 'Guest not found'); if (!isEmail(g.email)) throw fail(400, 'This guest has no email address');
+  if (!mailConfigured()) throw fail(503, 'Email is not set up on this server yet.');
+  if (!one(`SELECT 1 x FROM guests WHERE id=? AND ${invitable}`, g.id)) throw fail(429, 'This guest was already emailed in the last 24 hours.');
+  inviteMail(w, g); res.json({ ok: true });
+}));
+app.post('/api/invite/email-all', auth, wrap((req: any, res: any) => {
+  const w = W(req); if (!mailConfigured()) throw fail(503, 'Email is not set up on this server yet.');
+  const gs = q(`SELECT * FROM guests WHERE wedding_id=? AND rsvp='pending' AND ${invitable} LIMIT 200`, w.id);
+  gs.forEach((g: any) => inviteMail(w, g)); res.json({ ok: true, queued: gs.length });
 }));
 // public RSVP page (no login needed, opened from WhatsApp link)
 const esc = (s: string) => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -195,7 +222,9 @@ app.post('/api/enquiries', auth, wrap((req: any, res: any) => {
   const b = z.object({ vendor_id: z.number().int(), event_date: z.string(), guests: z.number().int().positive(), budget_paise: z.number().int().positive(), note: z.string().max(500).optional() }).parse(req.body);
   const w = W(req); const target = one('SELECT unclaimed FROM vendors WHERE id=?', b.vendor_id); if (!target) throw fail(404, 'Vendor not found');
   if (target.unclaimed) throw fail(409, 'This business has not joined Shaadi OS yet, so it cannot receive enquiries here. Use the link on its page to contact it directly.');
-  res.json({ id: Number(run('INSERT INTO enquiries(wedding_id,couple_id,vendor_id,event_date,guests,budget_paise,note) VALUES(?,?,?,?,?,?,?)', w.id, req.user.id, b.vendor_id, b.event_date, b.guests, b.budget_paise, b.note || '').lastInsertRowid) });
+  const eid = Number(run('INSERT INTO enquiries(wedding_id,couple_id,vendor_id,event_date,guests,budget_paise,note) VALUES(?,?,?,?,?,?,?)', w.id, req.user.id, b.vendor_id, b.event_date, b.guests, b.budget_paise, b.note || '').lastInsertRowid);
+  mailUser(vendorUser(b.vendor_id), 'enquiry-new', 'New enquiry on Shaadi OS', [`${one('SELECT name FROM users WHERE id=?', req.user.id)?.name || 'A couple'} sent you an enquiry for ${b.event_date}.`, `Guests: ${b.guests}. Budget: ${rupees(b.budget_paise)}.`], appLink);
+  res.json({ id: eid });
 }));
 app.get('/api/enquiries', auth, wrap((req: any, res: any) => {
   const v = myVendor(req.user.id);
@@ -228,7 +257,7 @@ app.post('/api/enquiries/:id/quotes', auth, wrap((req: any, res: any) => {
   if (b.milestones.reduce((s, m) => s + m.pct, 0) !== 100) throw fail(400, 'Milestones must total 100%');
   const total = b.items.reduce((s, i) => s + i.amount_paise, 0); const ver = (one('SELECT MAX(version) m FROM quotes WHERE enquiry_id=?', e.id).m || 0) + 1;
   run("UPDATE quotes SET status='superseded' WHERE enquiry_id=? AND status='sent'", e.id);
-  run('INSERT INTO quotes(enquiry_id,version,items,total_paise,milestones) VALUES(?,?,?,?,?)', e.id, ver, JSON.stringify(b.items), total, JSON.stringify(b.milestones)); res.json({ version: ver, total_paise: total });
+  run('INSERT INTO quotes(enquiry_id,version,items,total_paise,milestones) VALUES(?,?,?,?,?)', e.id, ver, JSON.stringify(b.items), total, JSON.stringify(b.milestones)); mailUser(e.couple_id, 'quote-new', 'You have a new quote', [`${v.name} sent a quote of ${rupees(total)}.`, 'Open the app to review it and book.'], appLink); res.json({ version: ver, total_paise: total });
 }));
 app.post('/api/quotes/:id/accept', auth, wrap((req: any, res: any) => {
   const qt = one('SELECT * FROM quotes WHERE id=?', req.params.id); const e = qt && one('SELECT * FROM enquiries WHERE id=?', qt.enquiry_id);
@@ -240,7 +269,10 @@ app.post('/api/quotes/:id/accept', auth, wrap((req: any, res: any) => {
     const bid = Number(run('INSERT INTO bookings(quote_id,enquiry_id,couple_id,vendor_id,wedding_id,total_paise,commission_bps) VALUES(?,?,?,?,?,?,?)', qt.id, e.id, e.couple_id, e.vendor_id, e.wedding_id, qt.total_paise, bps).lastInsertRowid);
     const milestones = JSON.parse(qt.milestones); let allocated = 0;
     milestones.forEach((m: any, index: number) => { const amount = index === milestones.length - 1 ? qt.total_paise - allocated : Math.floor(qt.total_paise * m.pct / 100); allocated += amount; run('INSERT INTO milestones(booking_id,label,pct,amount_paise) VALUES(?,?,?,?)', bid, m.label, m.pct, amount); });
-    run("UPDATE enquiries SET status='booked' WHERE id=?", e.id); vendorDecided(e.wedding_id, e.vendor_id); db.exec('COMMIT'); res.json({ booking_id: bid });
+    run("UPDATE enquiries SET status='booked' WHERE id=?", e.id); vendorDecided(e.wedding_id, e.vendor_id); db.exec('COMMIT');
+    mailUser(e.couple_id, 'booking-confirmed', 'Your booking is confirmed', [`Your booking is confirmed for ${rupees(qt.total_paise)}.`, 'Pay each instalment in the app; the money is held safely until the work is done.'], appLink);
+    mailUser(vendorUser(e.vendor_id), 'booking-new', 'You have a new booking', [`A couple booked you for ${rupees(qt.total_paise)}.`], appLink);
+    res.json({ booking_id: bid });
   } catch (x) { db.exec('ROLLBACK'); throw x; }
 }));
 const bookingView = (b: any) => ({ ...b, vendor_name: one('SELECT name FROM vendors WHERE id=?', b.vendor_id).name, couple_name: one('SELECT name FROM users WHERE id=?', b.couple_id).name, milestones: (() => { const ms = q('SELECT * FROM milestones WHERE booking_id=? ORDER BY id', b.id); const ev = one('SELECT event_date FROM enquiries WHERE id=?', b.enquiry_id)?.event_date; return ms.map((m: any, i: number) => ({ ...m, due_on: instalmentDue(i, ms.length, b.created_at, ev) })); })(), reviewed: !!one('SELECT 1 x FROM reviews WHERE booking_id=?', b.id) });
@@ -274,6 +306,7 @@ app.post('/api/milestones/:id/pay', auth, wrap((req: any, res: any) => {
   const m = one('SELECT * FROM milestones WHERE id=?', req.params.id); const b = m && one('SELECT * FROM bookings WHERE id=?', m.booking_id);
   if (!b || b.couple_id !== req.user.id) throw fail(403, 'Not your booking'); if (b.status !== 'confirmed') throw fail(409, 'Booking is not active'); if (m.status !== 'pending') throw fail(409, 'Already paid');
   db.exec('BEGIN'); try { run("UPDATE milestones SET status='held' WHERE id=?", m.id); run('INSERT INTO ledger(booking_id,milestone_id,kind,amount_paise,idem) VALUES(?,?,?,?,?)', b.id, m.id, 'escrow_in', m.amount_paise, `in-${m.id}`); db.exec('COMMIT'); } catch (x) { db.exec('ROLLBACK'); throw x; }
+  mailUser(vendorUser(b.vendor_id), 'milestone-paid', 'A payment is held for you', [`${m.label}: ${rupees(m.amount_paise)} is now held in escrow and will be released when the couple confirms.`], appLink);
   res.json({ ok: true, mock: true });
 }));
 app.post('/api/milestones/:id/release', auth, wrap((req: any, res: any) => {
@@ -282,6 +315,7 @@ app.post('/api/milestones/:id/release', auth, wrap((req: any, res: any) => {
   const fee = Math.round(m.amount_paise * b.commission_bps / 10000);
   db.exec('BEGIN'); try { run("UPDATE milestones SET status='released' WHERE id=?", m.id); run('INSERT INTO ledger(booking_id,milestone_id,kind,amount_paise,idem) VALUES(?,?,?,?,?)', b.id, m.id, 'payout', m.amount_paise - fee, `out-${m.id}`); run('INSERT INTO ledger(booking_id,milestone_id,kind,amount_paise,idem) VALUES(?,?,?,?,?)', b.id, m.id, 'commission', fee, `fee-${m.id}`);
     if (!one("SELECT 1 x FROM milestones WHERE booking_id=? AND status!='released'", b.id)) run("UPDATE bookings SET status='completed' WHERE id=?", b.id); db.exec('COMMIT'); } catch (x) { db.exec('ROLLBACK'); throw x; }
+  mailUser(vendorUser(b.vendor_id), 'milestone-released', 'A payout has been released', [`${m.label}: ${rupees(m.amount_paise - fee)} has been released to you.`], appLink);
   res.json({ ok: true, payout_paise: m.amount_paise - fee, commission_paise: fee });
 }));
 app.get('/api/payouts', auth, wrap((req: any, res: any) => {
