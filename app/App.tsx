@@ -21,6 +21,7 @@ import { Icon, IconName, Logo } from './src/icons';
 import { syncReminders } from './src/reminders';
 import Onboarding from './src/onboarding';
 import { hasOnboarded } from './src/prefs';
+import { ConsentGate } from './src/safety';
 // Shown while the session and fonts load. Same burgundy as the native splash so the hand-off has no flash,
 // and it says what is happening when the server is slow instead of spinning silently.
 function BootScreen({ fontsReady }: { fontsReady: boolean }) {
@@ -98,6 +99,7 @@ export default function App() {
       <Stack.Screen name="Vendor" component={VendorScreen} options={{ title: '' }} />
       <Stack.Screen name="SignIn" options={{ headerShown: false, presentation: 'modal', animation: 'slide_from_bottom' }}>{(p: any) => <Login onDone={signedIn} onClose={() => p.navigation.goBack()} lang={lang} setLang={setLang} />}</Stack.Screen>
     </Stack.Navigator></NavigationContainer></GuestCtx.Provider></ErrorBoundary></SafeAreaProvider></LangCtx.Provider>);
+  if (me.consent_current === false) return <LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><ConsentGate onAccepted={boot} onLogout={logout} /></ErrorBoundary></SafeAreaProvider></LangCtx.Provider>;
   const vendor = me.user.role === 'vendor'; const Tabs = vendor ? VendorTabs(me, logout, landing.current) : CoupleTabs(me, logout, landing.current);
   return (<LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><NavigationContainer key={lang} initialState={navState.current} onStateChange={state => { navState.current = state; }}>
     <Stack.Navigator screenOptions={{ ...hdr, animation: 'slide_from_right' }}><Stack.Screen name="Home" component={Tabs} options={{ title: 'Shaadi OS', headerShown: false }} />

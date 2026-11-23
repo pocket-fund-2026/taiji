@@ -51,7 +51,7 @@ app.post('/api/auth/verify', wrap((req: any, res: any) => {
   }
   res.json({ token: jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }), user: u });
 }));
-app.get('/api/me', auth, wrap((req: any, res: any) => res.json({ user: one('SELECT * FROM users WHERE id=?', req.user.id), wedding: myWedding(req.user.id) || null, vendor: myVendor(req.user.id) || null })));
+app.get('/api/me', auth, wrap((req: any, res: any) => res.json({ consent_current: !!one("SELECT 1 x FROM consents WHERE user_id=? AND purpose=? AND granted=1", req.user.id, 'terms:' + POLICY_VERSION), user: one('SELECT * FROM users WHERE id=?', req.user.id), wedding: myWedding(req.user.id) || null, vendor: myVendor(req.user.id) || null })));
 // Profile edits: display name and app language.
 app.patch('/api/me', auth, wrap((req: any, res: any) => {
   const b = z.object({ name: z.string().trim().min(2, 'Enter your name').max(80).optional(), lang: z.enum(['en', 'hi', 'mr', 'ta', 'te', 'bn', 'gu', 'pa', 'kn', 'ml']).optional() }).parse(req.body);
@@ -172,7 +172,7 @@ app.get('/rsvp/:token', wrap((req: any, res: any) => {
   res.send(rsvpPage(`RSVP · ${esc(g.title)}`, `<h1>${esc(g.title)}</h1><p class="muted">${esc(dateText(g.date))} · ${esc(g.city)}</p>
     <p>Namaste ${esc(g.name)}, ${events.length ? 'please tell us which ceremonies you can attend.' : 'will you join us?'}</p>
     <form method="post"><input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off">${form}</form>
-    <p class="muted" style="margin-top:40px">Planning your own wedding? <a href="/">Shaadi OS</a></p>`));
+    <p class="muted" style="margin-top:40px">Your reply goes only to the couple hosting this event. <a href="/privacy">How we handle your data</a>. Planning your own wedding? <a href="/">Shaadi OS</a></p>`));
 }));
 app.post('/rsvp/:token', express.urlencoded({ extended: false }), spamGuard(), wrap((req: any, res: any) => {
   const b = z.object({ rsvp: z.enum(['yes', 'no', 'events']), meal: z.enum(['Veg', 'Jain', 'Non-veg', 'Vegan']).default('Veg'), plus: z.coerce.number().int().min(0).max(49).default(0) }).safeParse(req.body);

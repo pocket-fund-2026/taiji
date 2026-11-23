@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // The app uses the first that answers, so it works whichever network the phone is on.
 const BUILT: string = process.env.EXPO_PUBLIC_API_URL || '';
 const CANDIDATES = BUILT.split(',').map((u: string) => u.trim().replace(/\/$/, '')).filter(Boolean);
-export const DEFAULT_API = CANDIDATES[0] || (typeof window !== 'undefined' && window.location ? window.location.hostname === 'localhost' ? 'http://localhost:4600' : window.location.origin : 'http://46.225.26.58:4600');
+export const DEFAULT_API = CANDIDATES[0] || (typeof window !== 'undefined' && window.location ? window.location.hostname === 'localhost' ? 'http://localhost:4600' : window.location.origin : 'https://46-225-26-58.sslip.io');
 let base = DEFAULT_API; let token = '';
 // Keep cache writes and removals ordered so an older response cannot restore cleared data.
 let cacheQueue: Promise<unknown> = Promise.resolve();

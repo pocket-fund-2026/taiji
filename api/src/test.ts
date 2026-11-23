@@ -350,6 +350,30 @@ test('legal pages show the company and Grievance Officer details when configured
   try { for (const p of ['/privacy', '/terms', '/grievance']) { const r = await transport(p, '', 'GET', undefined, true); for (const v of Object.values(keys)) assert.ok(r.data.includes(v.replace('&', '&amp;')), `${p} shows ${v}`); } }
   finally { for (const k of Object.keys(keys)) delete process.env[k]; }
 });
+test('existing accounts are asked to accept the current terms once', async () => {
+  const fresh = await request('/api/me', couple); assert.equal(fresh.data.consent_current, true, 'new sign-ups already accepted');
+  const old = one("INSERT INTO users(phone,name,role) VALUES('9812300444','Old user','couple') RETURNING id");
+  const { default: jwtLib } = await import('jsonwebtoken');
+  const token = (await request('/api/auth/verify', '', 'POST', { phone: '9812300444', otp: '123456' })).data.token;
+  assert.equal((await request('/api/me', token)).data.consent_current, false, 'an account with no logged acceptance is asked');
+  assert.equal((await request('/api/consent/accept-terms', token, 'POST', {})).status, 200);
+  assert.equal((await request('/api/me', token)).data.consent_current, true);
+  assert.ok(jwtLib && old.id);
+});
+test('retention purge removes only expired records and deletion clears safety data', async () => {
+  const { purgeExpired } = await import('./compliance.ts');
+  db.prepare("INSERT INTO audit(actor,action,detail,created_at) VALUES(1,'old','{}',datetime('now','-181 days')),(1,'recent','{}',datetime('now','-5 days'))").run();
+  db.prepare("INSERT INTO grievances(name,contact,category,message,status,resolved_at) VALUES('A','9812300003','other','resolved long ago here','resolved',datetime('now','-4 years')),('B','9812300004','other','still open here now','open',NULL)").run();
+  assert.ok(purgeExpired() >= 2);
+  assert.equal(one("SELECT COUNT(*) n FROM audit WHERE action='old'").n, 0); assert.equal(one("SELECT COUNT(*) n FROM audit WHERE action='recent'").n, 1);
+  assert.equal(one("SELECT COUNT(*) n FROM grievances WHERE name='A'").n, 0); assert.equal(one("SELECT COUNT(*) n FROM grievances WHERE name='B'").n, 1);
+  const temp = await login('9812300999'); const coupleId = (await request('/api/me', couple)).data.user.id; const me = (await request('/api/me', temp)).data.user.id;
+  await request('/api/blocks', temp, 'POST', { user_id: coupleId });
+  await request('/api/reports', temp, 'POST', { kind: 'user', target_id: coupleId, reason: 'Spam messages sent to me' });
+  const exported = (await request('/api/my-data', temp)).data; assert.equal(exported.blocked_people.length, 1); assert.equal(exported.reports_made.length, 1);
+  assert.equal((await request('/api/my-data', temp, 'DELETE')).status, 200);
+  assert.equal(one('SELECT COUNT(*) n FROM blocks WHERE blocker_id=?', me).n, 0); assert.equal(one('SELECT COUNT(*) n FROM reports WHERE reporter_id=?', me).n, 0);
+});
 test('roadmap tracks each vendor service and a month-by-month timeline', async () => {
   const r = await request('/api/planner/roadmap', couple);
   assert.equal(r.status, 200);

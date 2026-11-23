@@ -2,7 +2,7 @@
 // listing removal/claim requests, grievances with an acknowledgement, abuse reports, blocking, and the admin inbox for all of them.
 import { z } from 'zod';
 import { db, q, one, run } from './db.ts';
-import { adminPhones } from './config.ts';
+import { adminPhones, POLICY_VERSION } from './config.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor INT, action TEXT, detail TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
@@ -18,9 +18,27 @@ const contactRule = z.string().trim().min(5, 'Add a phone number or email so we 
 export const isSuppressed = (name: string, city: string) => !!one('SELECT 1 x FROM listing_suppressions WHERE name=? AND city=?', name, city);
 export const ref = (prefix: string, id: number) => `${prefix}-${String(id).padStart(6, '0')}`;
 
+// Retention limits promised in the privacy policy: security and audit logs 180 days, resolved grievances three years, resolved reports and listing requests one year.
+export function purgeExpired() {
+  const gone = [
+    run("DELETE FROM audit WHERE created_at < datetime('now','-180 days')"),
+    run("DELETE FROM grievances WHERE status='resolved' AND resolved_at < datetime('now','-3 years')"),
+    run("DELETE FROM reports WHERE status='resolved' AND resolved_at < datetime('now','-1 year')"),
+    run("DELETE FROM listing_requests WHERE status='resolved' AND resolved_at < datetime('now','-1 year')"),
+  ];
+  return gone.reduce((n, r) => n + Number(r.changes), 0);
+}
+
 export function mountCompliance(app: any, auth: any, wrap: any, spamGuard: any) {
   const admin = (req: any, _r: any, next: any) => { const u = one('SELECT phone FROM users WHERE id=?', req.user.id); if (!adminPhones().includes(u?.phone)) return next(fail(403, 'Admins only')); next(); };
   const audit = (a: number, action: string, d: any) => run('INSERT INTO audit(actor,action,detail) VALUES(?,?,?)', a, action, JSON.stringify(d));
+
+  // Existing accounts made before the current policy version are asked to accept it once; the acceptance is logged with its version.
+  app.post('/api/consent/accept-terms', auth, wrap((req: any, res: any) => {
+    for (const purpose of ['terms', 'privacy_notice']) run('INSERT INTO consents(user_id,purpose,granted) VALUES(?,?,1)', req.user.id, `${purpose}:${POLICY_VERSION}`);
+    res.json({ ok: true, version: POLICY_VERSION });
+  }));
+  purgeExpired(); setInterval(purgeExpired, 24 * 3600 * 1000).unref();
 
   // Anyone, signed in or not, can ask for a listing to be removed, corrected or claimed. Requests are acknowledged at once and handled within 48 hours.
   app.post('/api/listing-requests', spamGuard(), wrap((req: any, res: any) => {

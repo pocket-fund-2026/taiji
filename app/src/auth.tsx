@@ -106,7 +106,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
               <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: accept ? C.primary : C.faint, backgroundColor: accept ? C.primary : C.card, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>{accept ? <Icon name="check" size={15} color="#fff" strokeWidth={3} /> : null}</View>
               <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontSize: 14, lineHeight: 21 }}>{tr('I agree to the Terms and Privacy Policy. Shaadi OS will use my name and mobile number to run my account, and I can export or delete my data any time.')}</Text>
             </Pressable>
-            <View style={{ flexDirection: 'row', gap: 16, marginBottom: 12, paddingLeft: 36 }}><LegalLink path="/terms" label={tr('Terms')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} /></View>
+            <View style={{ flexDirection: 'row', gap: 16, marginBottom: 12, paddingLeft: 36 }}><LegalLink path="/terms" label={tr('Terms')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} />{role === 'vendor' ? <LegalLink path="/vendor-terms" label={tr('Vendor Terms')} /> : null}</View>
           </> : null}
 
           {!!error && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text>}
