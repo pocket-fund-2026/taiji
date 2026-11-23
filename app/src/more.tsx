@@ -124,15 +124,33 @@ function CRM() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>{STAGES.map(st => <Chip key={st} label={cap(st)} on={c.stage === st} onPress={() => mv(c.id, st)} />)}</ScrollView></Card></Rise>)}</ScrollView>);
 }
 
+const OUTCOMES: [string, string][] = [['completed', 'Vendor delivered'], ['confirmed', 'Back to confirmed'], ['cancelled', 'Cancel booking']];
+function DisputeRow({ d, done }: { d: any; done: () => void }) {
+  const [open, setOpen] = useState(false); const [outcome, setOutcome] = useState('completed'); const [note, setNote] = useState(''); const [busy, setBusy] = useState(false);
+  const resolve = async () => { setBusy(true); try { await api(`/admin/disputes/${d.id}/resolve`, 'POST', { resolution: note.trim(), booking_status: outcome }); done(); } catch (e) { err(e); } finally { setBusy(false); } };
+  return (<View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line }}>
+    <View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontWeight: '500' }}>{d.vendor_name || tr('Vendor')} · {inr(d.total_paise)}</Text><Tag tone="warn" label={d.raised_by_role === 'couple' ? tr('Raised by couple') : tr('Raised by vendor')} /></View>
+    <M style={{ marginTop: 4 }}>{d.reason}</M>
+    {d.held_paise > 0 ? <M style={{ marginTop: 2 }}>{tr('Held in escrow')}: {inr(d.held_paise)}</M> : null}
+    {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : <>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>{OUTCOMES.map(([k, l]) => <Chip key={k} label={tr(l)} on={outcome === k} onPress={() => setOutcome(k)} />)}</ScrollView>
+      <Input label={tr('Resolution note')} value={note} onChangeText={setNote} multiline />
+      <Btn small title={tr('Save resolution')} disabled={busy || note.trim().length < 3} onPress={resolve} />
+      <M style={{ marginTop: 6 }}>{tr('Escrow money is not moved here. Settle any payout with your CA or payment partner.')}</M></>}
+  </View>);
+}
+
 export function Admin() {
-  const [sum, setSum] = useState<any>(null); const [vs, setVs] = useState<any[]>([]);
-  const load = async () => { try { setSum(await api('/admin/summary')); setVs(await api('/admin/vendors')); } catch { setSum(null); } };
+  const [sum, setSum] = useState<any>(null); const [vs, setVs] = useState<any[]>([]); const [ds, setDs] = useState<any[]>([]);
+  const load = async () => { try { setSum(await api('/admin/summary')); setVs(await api('/admin/vendors')); setDs(await api('/admin/disputes')); } catch { setSum(null); } };
   useEffect(() => { load(); }, []);
   if (!sum) return null;
   const verify = async (id: number) => { await api(`/admin/vendors/${id}/verify`, 'POST').catch(err); load(); };
   return (<Card style={{ marginTop: 16 }}><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 17, color: C.ink }}>{tr('Admin')}</Text>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>{[[tr('GMV'), inr(sum.gmv_paise)], [tr('Commission'), inr(sum.commission_paise)], [tr('Bookings'), sum.bookings], [tr('Open disputes'), sum.open_disputes]].map(([k, v], i) => (
       <View key={i} style={{ width: '50%', paddingVertical: 8 }}><M>{k}</M><Text maxFontSizeMultiplier={1.3} style={{ fontWeight: '500', color: C.ink, fontSize: 17 }}>{v}</Text></View>))}</View>
+    {ds.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 8 }]}>{tr('Open disputes')}</Text> : null}
+    {ds.map(d => <DisputeRow key={d.id} d={d} done={load} />)}
     {vs.length ? <Text maxFontSizeMultiplier={1.3} style={[s.label, { marginTop: 8 }]}>{tr('Vendors awaiting verification')}</Text> : null}
     {vs.map(v => <View key={v.id} style={[s.row, { marginTop: 8 }]}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink }}>{v.name}</Text><Btn small icon="seal" title={tr('Verify')} onPress={() => verify(v.id)} /></View>)}</Card>);
 }

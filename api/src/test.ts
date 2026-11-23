@@ -240,6 +240,22 @@ test('payment and release enforce ownership, idempotency and dispute holds', asy
   assert.equal((await request(`/api/milestones/${booking.milestones[1].id}/pay`, couple, 'POST')).status, 409);
   assert.equal(one('SELECT status FROM milestones WHERE id=?', m.id).status, 'held');
 });
+test('admins see open disputes with booking context and can resolve each only once', async () => {
+  const admin = await login('9999999999');
+  assert.equal((await request('/api/admin/disputes', couple)).status, 403);
+  const list = (await request('/api/admin/disputes', admin)).data;
+  assert.equal(list.length, 1);
+  const d = list[0];
+  assert.equal(d.raised_by_role, 'couple');
+  assert.equal(d.total_paise, booking.total_paise);
+  assert.ok(d.vendor_name && d.reason);
+  assert.equal(d.held_paise, booking.milestones[0].amount_paise, 'held escrow is reported');
+  assert.equal((await request(`/api/admin/disputes/${d.id}/resolve`, couple, 'POST', { resolution: 'nope', booking_status: 'completed' })).status, 403);
+  assert.equal((await request(`/api/admin/disputes/${d.id}/resolve`, admin, 'POST', { resolution: 'Vendor delivered', booking_status: 'completed' })).status, 200);
+  assert.equal((await request(`/api/admin/disputes/${d.id}/resolve`, admin, 'POST', { resolution: 'Again', booking_status: 'cancelled' })).status, 409);
+  assert.equal(one('SELECT status FROM bookings WHERE id=?', booking.id).status, 'completed');
+  assert.equal((await request('/api/admin/disputes', admin)).data.length, 0);
+});
 test('roadmap tracks each vendor service and a month-by-month timeline', async () => {
   const r = await request('/api/planner/roadmap', couple);
   assert.equal(r.status, 200);
