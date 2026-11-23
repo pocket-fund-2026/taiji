@@ -5,7 +5,7 @@ Indian wedding marketplace + planning app (WedMeGood competitor). Couples book/p
 ## Layout
 - `api/`  Node 22 + TypeScript, Express, `node:sqlite` (no native deps). `src/server.ts` (core), `src/extras.ts` (events, family, shortlist, calendar, CRM, invoices, disputes, admin, DPDP, invite site), `src/db.ts`, `src/seed.ts`. Serves the web build and APK from `api/public/`.
 - `app/`  Expo (SDK 57) React Native + TypeScript. `App.tsx` navigation; `src/couple.tsx`, `src/vendor.tsx`, `src/more.tsx`, `src/auth.tsx`, `src/api.ts` (fetch + offline GET cache), `src/i18n.ts` (10 languages; `tr("English string")`), `src/ui.tsx`.
-- The server address is set in `app/src/api.ts` (`DEFAULT_API`) and editable on the login screen. Live demo API: `http://46.225.26.58:4600`.
+- The server address is set in `app/src/api.ts` (`DEFAULT_API`) and editable on the login screen. Set the API address at build time with `EXPO_PUBLIC_API_URL` (HTTPS in production).
 
 ## Your task on this Mac: build and run the iOS app
 1. `cd app && npm install`
@@ -16,7 +16,7 @@ Indian wedding marketplace + planning app (WedMeGood competitor). Couples book/p
 
 ## Mocked on purpose (replace later, keep the interfaces)
 - OTP is always `123456` (`/api/auth/verify`). Payments/escrow: `/api/milestones/:id/pay` and `/release`. WhatsApp = `wa.me` links. Do not wire real providers without my keys.
-- Demo logins: any 10-digit number; vendor `9000000001`. Admin phones via `ADMIN_PHONES` env (default 9999999999).
+- Demo logins: any 10-digit number; vendor `9000000001`. Admin phones via `ADMIN_PHONES` env (no default admin; see docs/SECURITY-RUNBOOK.md).
 
 ## Rules
 - Keep money in paise; never store card data. Flag GST/TCS/escrow/DPDP items for CA/lawyer review.

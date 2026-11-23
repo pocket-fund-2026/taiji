@@ -4,7 +4,7 @@ import { mountSiteFeatures } from './site-features.ts';
 // Public web-presence: legal pages, SEO files, landing page, 404, and a spam guard for public POST forms.
 // Privacy/Terms text is a placeholder, flagged per CLAUDE.md for CA/lawyer review before launch.
 const esc = (s: string) => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-const SITE = process.env.SITE_URL || 'http://46.225.26.58:4600';
+const SITE = process.env.SITE_URL || 'http://localhost:4600';
 const page = (title: string, description: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
