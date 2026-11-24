@@ -4,7 +4,7 @@ import { api } from './api';
 import { tr } from './i18n';
 import { Btn, C, Card, Chip, Empty, F, H, Input, Loading, M, Rise, Tag, inr, s, dateIN } from './ui';
 import { CAT_ICON, Icon, Logo } from './icons';
-import { CategoryCover, FloralArch, SectionTitle, categoryPalette } from './visuals';
+import { CategoryCover, FloralArch, SectionTitle, VendorCover, categoryPalette } from './visuals';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PortfolioPhoto, VendorCatalog } from './catalog';
 import { getPrefs, Prefs } from './prefs';
@@ -63,29 +63,8 @@ const place = (vendor: any) => `${vendor.locality ? vendor.locality + ', ' : ''}
 // Vendors with a real photo lead with it. Without one, a placeholder banner adds nothing, so the card is a compact
 // row with a small category tile and twice as many vendors fit on screen.
 export function VendorCard({ vendor, onPress, compare }: { vendor: any; onPress: () => void; compare?: CompareProps }) {
-  if (!vendor.cover_url) {
-    const palette = categoryPalette(vendor.category);
-    return <Card onPress={onPress} style={{ padding: 16, marginBottom: 12 }}>
-      <View style={{ flexDirection: 'row', gap: 16 }}>
-        <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }}><Icon name={CAT_ICON[vendor.category] || 'store'} size={28} color={palette.ink} /></View>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-            <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, fontFamily: F.display, fontSize: 17, lineHeight: 24, color: C.ink }}>{vendor.name}</Text>
-            {vendor.verified ? <View accessible accessibilityLabel={tr('Verified')}><Icon name="seal" size={18} color={C.ok} /></View> : null}
-          </View>
-          <M style={{ marginTop: 2 }}>{categoryLabel(vendor.category)} · {place(vendor)}</M>
-          {vendor.sample || vendor.unclaimed ? <View style={{ flexDirection: 'row', marginTop: 4 }}><Tag label={tr(vendor.sample ? 'Sample listing' : 'Not on Shaadi OS yet')} /></View> : null}
-          <View style={[s.row, { marginTop: 12, gap: 8 }]}>
-            {vendor.start_paise ? <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}><M style={{ fontSize: 12 }}>{tr('From')} </M><Text maxFontSizeMultiplier={1.3} style={{ fontWeight: '500', fontSize: 17, fontVariant: ['tabular-nums'] }}>{inr(vendor.start_paise)}</Text></Text> : <M>{tr('Price not listed')}</M>}
-            {compare ? <CompareToggle vendor={vendor} compare={compare} /> : <Rating vendor={vendor} />}
-          </View>
-          {compare && vendor.rating ? <View style={{ marginTop: 8 }}><Rating vendor={vendor} /></View> : null}
-        </View>
-      </View>
-    </Card>;
-  }
   return <Card onPress={onPress} style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-    <PortfolioPhoto uri={vendor.cover_url} caption={vendor.name} height={180} />
+    {vendor.cover_url ? <PortfolioPhoto uri={vendor.cover_url} caption={vendor.name} height={180} /> : <VendorCover category={vendor.category} id={vendor.id} height={120} />}
     {compare ? <CompareToggle vendor={vendor} compare={compare} floating /> : null}
     <View style={{ padding: 20 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -94,7 +73,7 @@ export function VendorCard({ vendor, onPress, compare }: { vendor: any; onPress:
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}><Icon name="pin" size={15} color={C.mute} /><M style={{ flex: 1 }}>{place(vendor)}</M></View>
       <View style={[s.row, { borderTopWidth: 1, borderTopColor: C.line, marginTop: 16, paddingTop: 16, gap: 8 }]}>
-        <View><M style={{ fontSize: 12 }}>{tr('Starting price')}</M><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontWeight: '500', fontSize: 20, marginTop: 4, fontVariant: ['tabular-nums'] }}>{inr(vendor.start_paise)}</Text></View>
+        <View><M style={{ fontSize: 12 }}>{tr('Starting price')}</M><Text maxFontSizeMultiplier={1.3} style={{ color: vendor.start_paise ? C.ink : C.mute, fontWeight: '500', fontSize: vendor.start_paise ? 20 : 16, marginTop: 4, fontVariant: ['tabular-nums'] }}>{vendor.start_paise ? inr(vendor.start_paise) : tr('Ask for a quote')}</Text></View>
         <Rating vendor={vendor} />
       </View>
     </View>
@@ -136,15 +115,23 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
     refreshControl={<RefreshControl refreshing={busy} onRefresh={() => setRefreshKey(k => k + 1)} tintColor={C.primary} />}
     ListHeaderComponent={<>
       {onSignIn && <View style={[s.row, { marginBottom: 20 }]}><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}><Logo size={28} /><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, color: C.primary, fontSize: 20 }}>Shaadi OS</Text></View><Btn small kind="quiet" title={tr('Sign in')} onPress={onSignIn} /></View>}
-      <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, color: C.ink, fontSize: 28, lineHeight: 34, textAlign: 'center' }}>{tr('Find wedding vendors')}</Text>
-      <M style={{ marginTop: 4, marginBottom: 16, textAlign: 'center', alignSelf: 'center', maxWidth: 320 }}>{tr('Venues, caterers, photographers, mehndi artists and pandits in Mumbai, Pune, Nashik and Nagpur.')}</M>
-      <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" />
-      {(() => { const left = daysTo(weddingDate); return <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-        <Stat value={summary ? String(summary.total) : '–'} label={city ? `${tr('vendors in')} ${city}` : tr('vendors listed')} />
-        {summary?.on_platform > 0 ? <Stat value={String(summary.on_platform)} label={tr('on Shaadi OS')} /> : null}
-        {left != null ? <Stat value={String(left)} label={tr('days to your wedding')} /> : null}
+      {(() => { const left = daysTo(weddingDate); return <View style={{ backgroundColor: C.primary, borderRadius: 28, padding: 22, overflow: 'hidden', marginBottom: 20 }}>
+        <View pointerEvents="none" style={{ position: 'absolute', right: -70, top: -90, width: 240, height: 240, borderRadius: 120, borderWidth: 2, borderColor: 'rgba(232,200,119,0.25)' }} />
+        <View pointerEvents="none" style={{ position: 'absolute', right: -30, top: -50, width: 160, height: 160, borderRadius: 80, borderWidth: 2, borderColor: 'rgba(232,200,119,0.18)' }} />
+        <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, letterSpacing: 2.5, color: '#E8C877', fontWeight: '700', textTransform: 'uppercase' }}>{left != null ? `${left} ${tr('days to your wedding')}` : city || tr('Mumbai, Pune, Nashik, Nagpur')}</Text>
+        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, color: '#FFFEFC', fontSize: 30, lineHeight: 36, marginTop: 8 }}>{tr('Find your wedding team')}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.82)', fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 18 }}>{tr('Venues, caterers, photographers, mehndi artists and pandits.')}</Text>
+        <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" />
+        <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.8)', fontSize: 13, marginTop: -4 }}>{summary ? `${summary.total} ${city ? `${tr('vendors in')} ${city}` : tr('vendors listed')}${summary.on_platform > 0 ? ` · ${summary.on_platform} ${tr('on Shaadi OS')}` : ''}` : ' '}</Text>
       </View>; })()}
-      <ServiceGroups category={category} setCategory={setCategory} counts={summary?.by_category} picks={prefs?.services || []} />
+      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, color: C.ink, fontSize: 20, marginBottom: 10 }}>{tr('Browse by service')}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+        {CATEGORIES.filter(([k]) => CAT_ICON[k]).map(([k, label]) => { const on = category === k; return <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={tr(label)} onPress={() => setCategory(on ? '' : k)} style={{ width: 84, alignItems: 'center' }}>
+          <View style={{ width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.primary : C.goldSoft, borderWidth: on ? 0 : 1, borderColor: C.line }}><Icon name={CAT_ICON[k]} size={28} color={on ? '#FFFEFC' : C.primary} strokeWidth={1.6} /></View>
+          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={{ marginTop: 8, fontSize: 13, fontWeight: on ? '700' : '500', color: on ? C.primary : C.ink }}>{tr(label)}</Text>
+          {summary?.by_category ? <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, color: C.mute }}>{summary.by_category[k] || 0}</Text> : null}
+        </Pressable>; })}
+      </ScrollView>
       <M style={{ marginTop: 20, marginBottom: 8 }}>{tr('Wedding city')}</M>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20 }}><Chip label={tr('All cities')} on={!city} onPress={() => setCity('')} />{CITIES.map(c => <Chip key={c} label={c} on={city === c} onPress={() => setCity(city === c ? '' : c)} />)}</ScrollView>
       {comparison.length > 0 && <Card><View style={s.row}><H style={{ fontSize: 20 }}>{tr('Compare vendors')} ({comparison.length}/3)</H><Btn small kind="ghost" title={tr('Clear')} onPress={() => { setComparison([]); setShowComparison(false); }} /></View>

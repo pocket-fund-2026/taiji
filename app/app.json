@@ -2,7 +2,7 @@
   "expo": {
     "name": "Shaadi OS",
     "slug": "shaadi-os",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/brand-icon-v3.png",
     "userInterfaceStyle": "light",
@@ -15,6 +15,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.shaadios.app",
       "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Taiji connects to your planning server on the local network to load vendors and your checklist.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
@@ -29,7 +30,8 @@
       "adaptiveIcon": {
         "backgroundColor": "#74263F",
         "foregroundImage": "./assets/android-icon-foreground-v3.png"
-      }
+      },
+      "versionCode": 3
     },
     "plugins": [
       [

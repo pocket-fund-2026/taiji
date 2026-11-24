@@ -57,6 +57,29 @@ export function CategoryCover({ category, label, large = false }: { category: st
   </View>;
 }
 
+// A vendor without an uploaded photo gets an illustrated cover. Each vendor's id picks the layout, so a list never repeats one banner.
+// It is artwork, never a photo of the business: real portfolio photos replace it as soon as the vendor uploads them.
+export function VendorCover({ category, id = 0, height = 132 }: { category: string; id?: number; height?: number }) {
+  const palette = categoryPalette(category);
+  const v = Math.abs(id) % 4;
+  const arch = [60, 300, 180, 120][v]; const orb = [335, 70, 330, 250][v]; const orbY = [30, 150, 160, 40][v];
+  return <View style={{ height, backgroundColor: palette.bg, overflow: 'hidden', justifyContent: 'flex-end', alignItems: 'flex-start', padding: 18 }}>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
+        <Circle cx={orb} cy={orbY} r="96" fill={palette.light} opacity=".28" />
+        <Circle cx={orb} cy={orbY} r="76" fill="none" stroke={palette.light} strokeWidth="1.5" />
+        <Circle cx={orb} cy={orbY} r="56" fill="none" stroke={palette.light} strokeWidth="1" opacity=".7" />
+        <Path d={`M${arch - 62} 230V120a62 62 0 0 1 124 0v110M${arch - 52} 230V120a52 52 0 0 1 104 0v110`} fill="none" stroke={palette.ink} strokeWidth="1.2" opacity=".3" />
+        <Path d={`M${arch} 60c-6-10-6-18 0-26 6 8 6 16 0 26Z`} fill={palette.ink} opacity=".35" />
+        {[0, 1, 2, 3, 4].map(i => <Circle key={i} cx={30 + ((i * 83 + v * 41) % 340)} cy={22 + ((i * 47 + v * 29) % 150)} r={2 + (i % 3)} fill={palette.ink} opacity=".14" />)}
+      </Svg>
+    </View>
+    <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#FFFFFFB3', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={CAT_ICON[category] || 'store'} size={26} color={palette.ink} strokeWidth={1.4} />
+    </View>
+  </View>;
+}
+
 export function SectionTitle({ title, detail }: { title: string; detail?: string }) {
   return <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 12, marginBottom: 16 }}>
     <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ flexShrink: 1, fontFamily: F.display, fontSize: 24, color: C.ink }}>{tr(title)}</Text>
