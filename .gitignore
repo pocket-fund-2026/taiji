@@ -26,3 +26,5 @@ api/uploads/
 # Business lists with contact details stay local (public repo).
 vendor-*.csv
 release/
+site/dist/
+site/dist-preview/
