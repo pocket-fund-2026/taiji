@@ -10,6 +10,7 @@ import { Bar, Btn, C, Card, Check, Chip, DateField, F, Input, M, confirm, dateIN
 import { FloralArch } from './visuals';
 import { CityPicker } from './citypicker';
 import { COMMUNITIES } from './india';
+import { buildPlan, checkPlanInput } from './planengine';
 
 const KEY = 'localplan';
 type LPTask = { id: string; title: string; due?: string; done: boolean };
@@ -70,15 +71,16 @@ function Setup({ navigation, onCreated }: { navigation: any; onCreated: (p: LPPl
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [listed, setListed] = useState<string[]>([]);
   useEffect(() => { api('/vendors/cities').then((r: any) => setListed((r || []).map((x: any) => x.city))).catch(() => {}); getPrefs().then(p => { if (p?.city) setF(x => x.city ? x : { ...x, city: p.city! }); }); }, []);
   const set = (k: string, v: string) => { setF(x => ({ ...x, [k]: v })); setError(''); };
-  const go = async () => {
-    if (!f.date) return setError(tr('Choose your wedding date.'));
-    if (!f.city.trim()) return setError(tr('Choose your wedding city.'));
-    if (!(+f.budget > 0)) return setError(tr('Enter a rough total budget.'));
+  // The plan is built on the phone by the same rules the server uses, so it works with no internet at all.
+  const go = () => {
+    const input = { date: f.date, city: f.city, community: f.community, guests_est: Math.max(1, +f.guests || 200), budget_paise: Math.round(+f.budget * 100) };
+    const problem = checkPlanInput(input);
+    if (problem) return setError(tr(problem === 'Enter a real calendar date' ? 'Choose your wedding date.' : problem));
     setBusy(true);
     try {
-      const r: any = await api('/plan/preview', 'POST', { date: f.date, city: f.city, community: f.community, guests_est: Math.max(1, +f.guests || 200), budget_paise: Math.round(+f.budget * 100) });
-      onCreated({ wedding: { ...r.wedding }, tasks: r.tasks.map((t: any) => ({ id: uid(), title: t.title, due: t.due, done: !!t.done })), events: r.events,
-        budget: r.budget.map((b: any) => ({ ...b, spent_paise: 0 })), guests: [], suggestions: r.suggestions });
+      const r = buildPlan(input);
+      onCreated({ wedding: { ...r.wedding }, tasks: r.tasks.map(t => ({ id: uid(), title: t.title, due: t.due, done: t.done })), events: r.events,
+        budget: r.budget.map(b => ({ ...b, spent_paise: 0 })), guests: [], suggestions: r.suggestions });
     } catch (e: any) { setError(e?.message || String(e)); } finally { setBusy(false); }
   };
   return <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>

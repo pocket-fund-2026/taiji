@@ -184,3 +184,49 @@ test('india-wide: listed cities, city interest counts, and regional traditions',
   const unknown = await request('/api/plan/preview', '', 'POST', { date: '2027-12-05', city: 'Imphal', community: 'Something else', budget_paise: 100000000 });
   assert.equal(unknown.status, 200, 'any city and unknown tradition still produce a plan');
 });
+
+// The phone builds plans offline with app/src/planengine.ts; the API builds the same plans from its own code.
+// These tests fail if the two ever disagree, for the preview endpoint AND for a real wedding created in an account.
+const { buildPlan } = await import('../../app/src/planengine.ts');
+const { TEMPLATES } = await import('./extras.ts');
+const CASES = [
+  { date: '2027-12-05', city: 'Pune', community: 'Marathi', guests_est: 300, budget_paise: 150000000 },
+  { date: '2026-12-20', city: 'Delhi', community: 'Punjabi/Sikh', guests_est: 500, budget_paise: 500000000 },   // short engagement: catch-up dates
+  { date: '2028-02-14', city: 'Chennai', community: 'Tamil', guests_est: 150, budget_paise: 80000000 },
+  { date: '2027-06-30', city: 'Lucknow', community: 'Muslim', guests_est: 400, budget_paise: 250000000 },
+  { date: '2027-11-11', city: 'Imphal', community: 'Unknown tradition', guests_est: 120, budget_paise: 70000000 },   // unknown tradition falls back
+];
+
+test('plan engine on the phone matches the API preview for every tradition case', async () => {
+  for (const c of CASES) {
+    const server = (await request('/api/plan/preview', '', 'POST', c)).data;
+    const phone = buildPlan(c);
+    assert.deepEqual(phone.tasks, server.tasks, `tasks differ for ${c.city}`);
+    assert.deepEqual(phone.events, server.events, `ceremonies differ for ${c.city}`);
+    assert.deepEqual(phone.budget, server.budget, `budget differs for ${c.city}`);
+    assert.deepEqual(phone.suggestions, server.suggestions, `suggestions differ for ${c.city}`);
+  }
+});
+
+test('plan engine on the phone matches a real wedding created in an account', async () => {
+  const c = CASES[0]; const token = await login('9812400077');
+  const w = await request('/api/wedding', token, 'POST', { title: 'Pune wedding', ...c });
+  assert.equal(w.status, 200);
+  const phone = buildPlan(c);
+  const tasks = (await request('/api/tasks', token)).data.map((t: any) => ({ title: t.title, due: t.due, done: !!t.done }));
+  const key = (t: any) => `${t.due}|${t.title}`;
+  assert.deepEqual([...tasks].sort((a, b) => key(a).localeCompare(key(b))), [...phone.tasks].sort((a, b) => key(a).localeCompare(key(b))), 'checklist matches the account wedding');
+  const events = (await request('/api/events', token)).data.map((e: any) => ({ name: e.name, date: e.date }));
+  assert.deepEqual(events, phone.events, 'ceremonies match the account wedding');
+  const budget = (await request('/api/budget', token)).data; const rows = (budget.rows || budget).map((r: any) => ({ category: r.category, allocated_paise: r.allocated_paise }));
+  assert.deepEqual([...rows].sort((a: any, b: any) => a.category.localeCompare(b.category)), [...phone.budget].sort((a, b) => a.category.localeCompare(b.category)), 'budget split matches the account wedding');
+});
+
+test('plan engine input checks and fallback', async () => {
+  const { checkPlanInput } = await import('../../app/src/planengine.ts');
+  assert.equal(checkPlanInput({ date: '2027-02-30', city: 'Pune', budget_paise: 1 }), 'Enter a real calendar date');
+  assert.equal(checkPlanInput({ date: '2027-02-10', city: ' ', budget_paise: 1 }), 'Choose your wedding city');
+  assert.equal(checkPlanInput({ date: '2027-02-10', city: 'Pune', budget_paise: 0 }), 'Enter a rough total budget');
+  assert.equal(checkPlanInput({ date: '2027-02-10', city: 'Pune', budget_paise: 100 }), null);
+  assert.ok(Object.keys(TEMPLATES).every(k => buildPlan({ date: '2027-02-10', city: 'X', community: k, budget_paise: 100000 }).events.length >= 2), 'every tradition builds ceremonies');
+});
