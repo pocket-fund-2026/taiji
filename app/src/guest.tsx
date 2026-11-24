@@ -1,7 +1,8 @@
 // Screens for people who haven't signed in yet: the app is open to explore, and planning starts with an account.
 import React, { useContext } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { tr } from './i18n';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { LANGS, LangCtx, tr } from './i18n';
+import { getBase } from './api';
 import { Btn, C, Card, Chip, F, M } from './ui';
 import { Icon, IconName } from './icons';
 import { FloralArch } from './visuals';
@@ -48,14 +49,26 @@ export function GuestVendors({ navigation }: any) {
   </View>;
 }
 
-// Profile before sign-in: language, a way in, and what this build is.
+// Profile before sign-in: a way in, language, and the policies that apply to a visitor.
 export function GuestProfile({ navigation }: any) {
-  return <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 40, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
-    <Card>
-      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink }}>{tr('You’re not signed in')}</Text>
-      <M style={{ marginTop: 4 }}>{tr('Sign in to plan your wedding, save vendors and send enquiries. Vendors sign in here too.')}</M>
+  const { lang, setLang } = useContext(LangCtx);
+  const open = (path: string) => Linking.openURL(getBase() + path).catch(() => {});
+  return <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ paddingBottom: 40 }}>
+    <View style={{ backgroundColor: C.primary, padding: 24, paddingTop: 32, overflow: 'hidden' }}>
+      <View pointerEvents="none" style={{ position: 'absolute', right: -30, bottom: -50, opacity: 0.3 }}><FloralArch size={160} color={C.goldSoft} /></View>
+      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 28, lineHeight: 34, color: C.goldSoft, maxWidth: 300 }}>{tr('Welcome to Shaadi OS')}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: '#F4DDE5', fontSize: 15, lineHeight: 22, marginTop: 8, maxWidth: 320 }}>{tr('Sign in to plan your wedding, save vendors and send enquiries. Vendors sign in here too.')}</Text>
+    </View>
+    <View style={{ padding: 16, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
       <Btn title={tr('Sign in or create an account')} onPress={() => navigation.navigate('SignIn')} />
-    </Card>
-    <M style={{ marginTop: 16 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. No real money moves; held payments are shown for demonstration only.')}</M>
+      <Btn kind="ghost" title={tr('Find vendors')} onPress={() => navigation.navigate('Discover')} />
+      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 18, color: C.ink, marginTop: 20, marginBottom: 8 }}>{tr('Language')}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{LANGS.map(([code, name]) => <Chip key={code} label={name} on={lang === code} onPress={() => setLang(code)} />)}</View>
+      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 18, color: C.ink, marginTop: 20, marginBottom: 4 }}>{tr('Policies')}</Text>
+      <Card style={{ paddingVertical: 4 }}>{[['/privacy', 'Privacy Policy'], ['/terms', 'Terms of Use'], ['/grievance', 'Raise a grievance']].map(([path, label], i) => <Pressable key={path} accessibilityRole="link" accessibilityLabel={tr(label)} onPress={() => open(path)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: i ? 1 : 0, borderTopColor: C.line }}>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}>{tr(label)}</Text><Icon name="chevron" size={16} color={C.mute} strokeWidth={2} />
+      </Pressable>)}</Card>
+      <M style={{ marginTop: 16 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. No real money moves; held payments are shown for demonstration only.')}</M>
+    </View>
   </ScrollView>;
 }
