@@ -24,7 +24,7 @@
           "whatsapp"
         ]
       },
-      "buildNumber": "12"
+      "buildNumber": "13"
     },
     "android": {
       "package": "com.shaadios.app",
@@ -32,7 +32,7 @@
         "backgroundColor": "#74263F",
         "foregroundImage": "./assets/android-icon-foreground-v3.png"
       },
-      "versionCode": 6,
+      "versionCode": 7,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WRITE_EXTERNAL_STORAGE",
