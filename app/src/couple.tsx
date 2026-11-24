@@ -9,7 +9,7 @@ import { api, getBase } from './api';
 import { Btn, Card, Chip, H, Input, M, C, F, inr, err, s, Empty, Rise, Tag, Stars, Bar, Check, Loading, confirm, notify, dateIN, DateField, todayISO, GuestCtx, ContactButtons } from './ui';
 import { Icon, CAT_ICON, IconName } from './icons';
 import { Marketplace } from './marketplace';
-import { CategoryCover, FloralArch } from './visuals';
+import { FloralArch, VendorCover } from './visuals';
 import { VendorCatalog } from './catalog';
 import { Gifts, RunSheet, Stays } from './hospitality';
 import { DayContacts, Documents, Seating, Shopping } from './organiser';
@@ -45,7 +45,7 @@ export function VendorScreen({ route, navigation }: any) {
   // Price and the booking action stay pinned at the bottom so they're reachable from anywhere in a long profile.
   return (<View style={{ flex: 1, backgroundColor: C.bg }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-      <View style={{ borderRadius: 18, overflow: 'hidden', marginBottom: 20 }}><CategoryCover category={v.category} label={catLabel(v.category)} large /></View>
+      <View style={{ borderRadius: 18, overflow: 'hidden', marginBottom: 20 }}><VendorCover category={v.category} id={v.id} height={170} label={catLabel(v.category)} /></View>
       <Rise i={0}>
         <H style={{ marginVertical: 0, fontSize: 28, lineHeight: 34 }}>{v.name}</H>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}><Icon name="pin" size={15} color={C.mute} /><M style={{ marginLeft: 4, flex: 1 }}>{catLabel(v.category)} · {v.locality ? v.locality + ', ' : ''}{v.city}</M></View>
