@@ -4,6 +4,7 @@ import { readRuntimeConfig, loadSecret, corsOrigins, adminPhones, POLICY_VERSION
 import { mountCatalog, vendorCatalog } from './catalog.ts';
 import { mailUser, notify, compose, isEmail, normEmail, siteUrl, rupees, mailConfigured } from './mailer.ts';
 import { mountEmailAuth } from './email-auth.ts';
+import { mountAI } from './ai.ts';
 import { guideForWedding } from './planning-guide.ts';
 import { addAfterTasks, vendorDecided, AFTER_TASKS } from './traditions.ts';
 import express from 'express'; import cors from 'cors'; import jwt from 'jsonwebtoken'; import { z } from 'zod'; import { randomBytes } from 'node:crypto';
@@ -61,6 +62,7 @@ app.post('/api/auth/verify', wrap((req: any, res: any) => {
 app.get('/api/me', auth, wrap((req: any, res: any) => res.json({ consent_current: !!one("SELECT 1 x FROM consents WHERE user_id=? AND purpose=? AND granted=1", req.user.id, 'terms:' + POLICY_VERSION), user: one('SELECT * FROM users WHERE id=?', req.user.id), wedding: myWedding(req.user.id) || null, vendor: myVendor(req.user.id) || null })));
 // Email verification and email sign-in (needs SMTP settings; see docs/EMAIL.md).
 mountEmailAuth(app, { auth, wrap, fail, secret: SECRET, sign: (u: any) => jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }), consent: (uid: number) => { for (const purpose of ['terms', 'privacy_notice']) run('INSERT INTO consents(user_id,purpose,granted) VALUES(?,?,1)', uid, `${purpose}:${POLICY_VERSION}`); } });
+mountAI(app, { wrap, fail });
 // Profile edits: display name and app language.
 app.patch('/api/me', auth, wrap((req: any, res: any) => {
   const b = z.object({ name: z.string().trim().min(2, 'Enter your name').max(80).optional(), lang: z.enum(['en', 'hi', 'mr', 'ta', 'te', 'bn', 'gu', 'pa', 'kn', 'ml']).optional() }).parse(req.body);
