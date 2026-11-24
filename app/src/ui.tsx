@@ -12,6 +12,8 @@ export const C = {
   ok: '#1E7A50', okSoft: '#E3F2EA', warn: '#A8402A', warnSoft: '#FAE9E3', line: '#EADCD3', chipBg: '#F3E9E0', tint: '#F6ECEF',
 };
 // Fraunces is used for display text only: wedding stationery is set in warm serifs, so headings borrow that register.
+// Payments are not live yet: while false, Pay and Release buttons and every "demo build" note stay hidden.
+export const SHOW_PAYMENTS = false;
 export const F = { display: 'Fraunces_600SemiBold', displayBold: 'Fraunces_700Bold' };
 const ND = Platform.OS !== 'web';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

@@ -143,7 +143,6 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
 
     <Section title={tr('About')}>
       <Row first icon="seal" label="Shaadi OS" value={`${tr('Version')} ${VERSION}`} />
-      <M style={{ paddingBottom: 12 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. No real money moves; held payments are shown for demonstration only.')}</M>
     </Section>
 
     <View style={{ marginTop: 24 }}><Btn kind="ghost" icon="logout" title={tr('Log out')} onPress={onLogout} /></View>

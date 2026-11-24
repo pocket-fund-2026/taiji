@@ -68,7 +68,6 @@ export function GuestProfile({ navigation }: any) {
       <Card style={{ paddingVertical: 4 }}>{[['/privacy', 'Privacy Policy'], ['/terms', 'Terms of Use'], ['/grievance', 'Raise a grievance']].map(([path, label], i) => <Pressable key={path} accessibilityRole="link" accessibilityLabel={tr(label)} onPress={() => open(path)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: i ? 1 : 0, borderTopColor: C.line }}>
         <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}>{tr(label)}</Text><Icon name="chevron" size={16} color={C.mute} strokeWidth={2} />
       </Pressable>)}</Card>
-      <M style={{ marginTop: 16 }}>{tr('Demo build: payments, OTP and WhatsApp are simulated. No real money moves; held payments are shown for demonstration only.')}</M>
     </View>
   </ScrollView>;
 }

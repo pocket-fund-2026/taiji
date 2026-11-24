@@ -66,7 +66,7 @@ function Mascot({ size = 112 }: { size?: number }) {
 
 // Landing screen: a burgundy hero with a gold arch, then three plain promises. Taiji palette only.
 const PROMISES: [IconName, string, string][] = [
-  ['shield', 'Pay in milestones', 'Your money is held safely and released only when each part of the work is done.'],
+  ['shield', 'Verified listings', 'Vendors show whether they are verified, with prices, portfolios and reviews you can compare.'],
   ['calendar', 'A checklist for your date', 'What to book first, and when, counted back from your wedding day.'],
   ['family', 'One budget for the family', 'Parents, siblings and your partner see the same vendors and the same numbers.'],
 ];

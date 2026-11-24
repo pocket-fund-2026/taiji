@@ -13,7 +13,7 @@ export function Payouts() {
     <Rise><Card>
       <M>{tr('Released to you')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 28, color: C.ok, marginTop: 2 }}>{inr(p.released_paise)}</Text><M>{tr('After the platform fee')}</M>
       <View style={{ height: 1, backgroundColor: C.line, marginVertical: 12 }} />
-      <View style={s.row}><View><M>{tr('Held (demo)')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink, marginTop: 2 }}>{inr(p.in_escrow_paise)}</Text></View>
+      <View style={s.row}><View><M>{tr('Held')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink, marginTop: 2 }}>{inr(p.in_escrow_paise)}</Text></View>
         <M style={{ maxWidth: '50%', textAlign: 'right' }}>{tr('Paid out as each couple releases a milestone')}</M></View></Card></Rise>
     <H style={{ fontSize: 17, marginTop: 12 }}>{tr('Payout history')}</H>
     {p.rows.length ? p.rows.map((r: any, i: number) => <Rise key={r.id} i={i}><Card><View style={s.row}>

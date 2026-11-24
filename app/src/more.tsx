@@ -131,7 +131,7 @@ function DisputeRow({ d, done }: { d: any; done: () => void }) {
   return (<View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line }}>
     <View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontWeight: '500' }}>{d.vendor_name || tr('Vendor')} · {inr(d.total_paise)}</Text><Tag tone="warn" label={d.raised_by_role === 'couple' ? tr('Raised by couple') : tr('Raised by vendor')} /></View>
     <M style={{ marginTop: 4 }}>{d.reason}</M>
-    {d.held_paise > 0 ? <M style={{ marginTop: 2 }}>{tr('Held (demo)')}: {inr(d.held_paise)}</M> : null}
+    {d.held_paise > 0 ? <M style={{ marginTop: 2 }}>{tr('Held')}: {inr(d.held_paise)}</M> : null}
     {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>{OUTCOMES.map(([k, l]) => <Chip key={k} label={tr(l)} on={outcome === k} onPress={() => setOutcome(k)} />)}</ScrollView>
       <Input label={tr('Resolution note')} value={note} onChangeText={setNote} multiline />

@@ -97,7 +97,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
 
           {step === 1 ? <>
             <Input label={tr('6-digit code')} value={otp} onChangeText={typeCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="sms-otp" maxLength={6} placeholder="••••••" autoFocus style={{ fontSize: 20, letterSpacing: 6 }} />
-            {em ? <M style={{ marginTop: -4, marginBottom: 12 }}>{tr('Check your inbox and spam folder. The code is valid for 10 minutes.')}</M> : <M style={{ marginTop: -4, marginBottom: 12 }}>{tr('Demo build: the code is always 123456.')}</M>}
+            {em ? <M style={{ marginTop: -4, marginBottom: 12 }}>{tr('Check your inbox and spam folder. The code is valid for 10 minutes.')}</M> : null}
           </> : null}
 
           {step === 2 ? <>
@@ -125,7 +125,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
 
 
         <View style={{ flexGrow: 1 }} />
-        <M style={{ marginTop: 32, fontSize: 12, textAlign: 'center' }}>{em ? tr('Demo build: payments are simulated.') : tr('Demo build: OTP and payments are simulated. Demo vendor: 9000000001.')}</M>
+        
         <Pressable accessibilityRole="button" onPress={() => setShowServer(!showServer)} style={{ alignSelf: 'center', minHeight: 40, justifyContent: 'center' }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.mute, fontSize: 12, textDecorationLine: 'underline' }}>{showServer ? tr('Hide server settings') : tr('Server settings')}</Text></Pressable>
         {showServer && <Input label={tr('Server address')} value={server} onChangeText={setServer} autoCapitalize="none" />}
       </View>

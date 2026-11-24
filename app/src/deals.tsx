@@ -6,7 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { api } from './api';
 import { tr } from './i18n';
 import { ReportBox, BlockButton } from './safety';
-import { Bar, Btn, C, Card, Chip, ContactButtons, Empty, F, Input, Loading, M, Rise, Tag, confirm, dateIN, err, inr, notify, s } from './ui';
+import { Bar, Btn, C, Card, Chip, ContactButtons, Empty, F, Input, Loading, M, Rise, SHOW_PAYMENTS, Tag, confirm, dateIN, err, inr, notify, s } from './ui';
 import { CAT_ICON, Icon } from './icons';
 import { categoryLabel } from './marketplace';
 
@@ -28,11 +28,13 @@ export function nextStep(d: Deal, vendor: boolean): { text: string; urgent: bool
   if (vendor) {
     if (d.stage === 'new') return { text: tr('Send a quote'), urgent: true };
     if (d.stage === 'quoted') return { text: tr('Waiting for the couple to accept'), urgent: false };
+    if (open && !SHOW_PAYMENTS) return { text: tr('Agree payment directly with the couple'), urgent: false };
     if (open) return { text: open.status === 'pending' ? `${tr('Waiting for payment')}: ${open.label}${open.due_on ? ` · ${tr('due')} ${dateIN(open.due_on)}` : ''}` : `${tr('Paid (demo), waiting for you to release')}: ${open.label}`, urgent: false };
     return null;
   }
   if (d.stage === 'new') return { text: tr('Waiting for the vendor’s quote'), urgent: false };
   if (d.stage === 'quoted') return { text: `${tr('Review the quote')} · ${inr(d.quote.total_paise)}`, urgent: true };
+  if (open && !SHOW_PAYMENTS) return { text: tr('Agree payment directly with the vendor'), urgent: false };
   if (open) return { text: open.status === 'pending' ? `${tr('Pay')} ${open.label} · ${inr(open.amount_paise)}${open.due_on ? ` · ${open.due_on < today() ? tr('overdue since') : tr('due')} ${dateIN(open.due_on)}` : ''}` : `${tr('Release')} ${open.label} ${tr('after the work is done')}`, urgent: true };
   if (d.stage === 'completed' && d.booking && !d.booking.reviewed) return { text: tr('Leave a review'), urgent: true };
   return null;
@@ -169,8 +171,8 @@ export function DealScreen({ route, navigation }: any) {
         <M>{tr('Next step')}</M>
         <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 17, fontWeight: '500', marginTop: 2 }}>{step.text}</Text>
         {!vendor && deal.stage === 'quoted' && quote ? <Btn icon="shield" title={tr('Accept & book')} disabled={working} onPress={() => accept(quote)} /> : null}
-        {!vendor && open && deal.stage !== 'disputed' ? (open.status === 'pending'
-          ? <Btn title={`${tr('Pay (demo)')} ${inr(open.amount_paise)}`} disabled={working} onPress={() => act(`/milestones/${open.id}/pay`)} />
+        {SHOW_PAYMENTS && !vendor && open && deal.stage !== 'disputed' ? (open.status === 'pending'
+          ? <Btn title={`${tr('Pay')} ${inr(open.amount_paise)}`} disabled={working} onPress={() => act(`/milestones/${open.id}/pay`)} />
           : <Btn kind="ok" title={`${tr('Release')} ${inr(open.amount_paise)}`} disabled={working} onPress={() => act(`/milestones/${open.id}/release`)} />) : null}
         {vendor && deal.stage === 'new' && !quoting ? <Btn icon="receipt" title={tr('Send a quote')} onPress={() => setQuoting(true)} /> : null}
       </Card> : null}
@@ -190,7 +192,7 @@ export function DealScreen({ route, navigation }: any) {
         <View style={{ marginVertical: 8 }}><Bar pct={deal.booking.total_paise ? paid / deal.booking.total_paise * 100 : 0} color={C.ok} /></View>
         {ms.map(m => <View key={m.id} style={[s.row, { paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.line }]}>
           <View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink }}>{tr(m.label)}</Text><M style={{ color: m.status === 'pending' && m.due_on && m.due_on < today() ? C.warn : C.mute }}>{inr(m.amount_paise)}{m.due_on && m.status === 'pending' ? ` · ${m.due_on < today() ? tr('overdue since') : tr('due')} ${dateIN(m.due_on)}` : ''}</M></View>
-          <Tag tone={m.status === 'released' ? 'ok' : m.status === 'held' ? 'gold' : 'mute'} label={tr(m.status === 'released' ? 'Released' : m.status === 'held' ? 'Held (demo)' : 'Due')} />
+          <Tag tone={m.status === 'released' ? 'ok' : m.status === 'held' ? 'gold' : 'mute'} label={tr(m.status === 'released' ? 'Released' : m.status === 'held' ? 'Held' : 'Due')} />
         </View>)}
         <M style={{ marginTop: 8 }}>{vendor ? `${tr('Platform fee')} ${deal.booking.commission_bps / 100}% · ${tr('paid by you when money is released')}` : tr('Each payment is held until you release it, so you only release money for work that is done.')}</M>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
