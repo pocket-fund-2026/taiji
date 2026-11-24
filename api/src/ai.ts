@@ -15,13 +15,15 @@ export type Provider = (messages: { role: string; content: string }[], opts: { m
 const ollamaUrl = () => (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
 const model = () => process.env.AI_MODEL || 'llama3.2:3b';
 const enabled = () => process.env.AI_ENABLED === '1';
+// Threads for the model. On a small shared server, using every core made it about 13x slower (cores were already busy), so the default is 2.
+const threads = () => Math.max(1, Math.min(16, Number(process.env.AI_THREADS) || 2));
 
 const ollamaProvider: Provider = async (messages, { maxTokens }) => {
   const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 110_000);
   try {
     const r = await fetch(ollamaUrl() + '/api/chat', {
       method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: model(), messages, stream: false, keep_alive: '30m', options: { num_predict: maxTokens, temperature: 0.5, num_ctx: 2048 } }),
+      body: JSON.stringify({ model: model(), messages, stream: false, keep_alive: '30m', options: { num_predict: maxTokens, temperature: 0.5, num_ctx: 2048, num_thread: threads() } }),
     });
     if (!r.ok) throw new Error('model error ' + r.status);
     const j: any = await r.json();
