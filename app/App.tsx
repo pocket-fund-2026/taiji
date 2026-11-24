@@ -12,6 +12,7 @@ import { LangCtx, useT, LANGS, setCur, tr } from './src/i18n';
 import Login, { SignedIn } from './src/auth';
 import { GuestProfile, GuestVendors } from './src/guest';
 import { LocalPlanner, importLocalPlan } from './src/localplan';
+import { Assistant } from './src/assistant';
 import { Discover, VendorScreen, EnquiryForm, Plan } from './src/couple';
 import { CompareQuotes, DealScreen, DealsList } from './src/deals';
 import { Payouts } from './src/vendor';
@@ -60,6 +61,7 @@ const CoupleTabs = (me: any, logout: () => void, landing?: string) => function T
     <Tab.Screen name="Discover" options={{ title: t('discover'), tabBarIcon: ti('search'), headerShown: false }} component={Discover} />
     <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }}>{(p: any) => <DealsList {...p} />}</Tab.Screen>
     <Tab.Screen name="Plan" options={{ title: t('plan'), tabBarIcon: ti('partnership'), headerShown: false }} component={Plan} />
+    <Tab.Screen name="Ask" options={{ title: tr('Ask'), tabBarIcon: ti('star'), headerShown: false }} component={Assistant} />
     <Tab.Screen name="Profile" options={{ title: t('profile'), tabBarIcon: ti('person') }}>{() => <ProfileScreen onLogout={logout} />}</Tab.Screen></Tab.Navigator>);
 };
 const VendorTabs = (me: any, logout: () => void, landing?: string) => function T() {
@@ -77,6 +79,7 @@ const GuestTabs = function T() {
     <Tab.Screen name="Discover" options={{ title: t('discover'), tabBarIcon: ti('search'), headerShown: false }} component={Discover} />
     <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }} component={GuestVendors} />
     <Tab.Screen name="Plan" options={{ title: t('plan'), tabBarIcon: ti('partnership'), headerShown: false }} component={LocalPlanner} />
+    <Tab.Screen name="Ask" options={{ title: tr('Ask'), tabBarIcon: ti('star'), headerShown: false }} component={Assistant} />
     <Tab.Screen name="Profile" options={{ title: t('profile'), tabBarIcon: ti('person') }} component={GuestProfile} /></Tab.Navigator>);
 };
 export default function App() {

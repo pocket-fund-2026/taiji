@@ -63,7 +63,8 @@ export async function api<T = any>(path: string, method = 'GET', body?: any, ret
   const active = () => requestSession === session && requestToken === token;
   const prefix = 'c:' + requestBase + ':' + (requestToken || 'public') + ':';
   const key = prefix + path;
-  const abort = new AbortController(); const timer = setTimeout(() => abort.abort(), 20000);
+  // The assistant runs a small model on a few CPU cores, so its answers may take much longer than ordinary requests.
+  const abort = new AbortController(); const timer = setTimeout(() => abort.abort(), path.startsWith('/ai/chat') ? 120000 : 20000);
   let r: Response;
   try {
     r = await globalThis.fetch(requestBase + '/api' + path, {
