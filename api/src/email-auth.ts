@@ -62,7 +62,13 @@ export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: nu
     res.json({ ok: true, email: u.email });
   }));
 
-  const loginEnabled = () => process.env.EMAIL_OTP_ENABLED === '1' && mailConfigured();
+  // App Store review: REVIEW_EMAIL + REVIEW_OTP (6 digits) let one demo address sign in with no mail sent. Never an admin.
+  const reviewEmail = () => normEmail(process.env.REVIEW_EMAIL || '');
+  const reviewOtp = () => (/^\d{6}$/.test(process.env.REVIEW_OTP || '') ? String(process.env.REVIEW_OTP) : '');
+  const isReview = (email: string) => !!reviewEmail() && !!reviewOtp() && email === reviewEmail();
+  const codeOk = (email: string, purpose: string, otp: string, spend = true) =>
+    (isReview(email) ? same(Buffer.from(otp), Buffer.from(reviewOtp())) : check(email, purpose, otp, undefined, spend));
+  const loginEnabled = () => process.env.EMAIL_OTP_ENABLED === '1' && (mailConfigured() || (!!reviewEmail() && !!reviewOtp()));
 
   app.post('/api/auth/email-otp', d.wrap(async (req: any, res: any) => {
     if (!loginEnabled()) throw d.fail(503, 'Email sign-in is not available.');
@@ -95,6 +101,8 @@ export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: nu
     const { email } = z.object({ email: emailSchema }).parse(req.body);
     if (limited(`es:${email}`, 5) || limited(`esip:${req.ip}`, 30)) throw d.fail(429, 'Too many codes requested. Try again in a few minutes.');
     const u = one('SELECT * FROM users WHERE email=? AND email_verified=1', email);
+    if (isReview(email)) return res.json({ ok: true });
+    if (!mailConfigured()) throw d.fail(503, 'Email sign-in is not available.');
     if (!(u && adminPhones().includes(u.phone))) await issue(u || { id: 0 }, email, u ? 'login' : 'signup');
     res.json({ ok: true });
   }));
@@ -106,14 +114,14 @@ export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: nu
     const wrong = () => d.fail(401, 'That code is not right or has expired.');
     const u = one('SELECT * FROM users WHERE email=? AND email_verified=1', b.email);
     if (u) {
-      if (adminPhones().includes(u.phone) || !check(b.email, 'login', b.otp)) throw wrong();
+      if (adminPhones().includes(u.phone) || !codeOk(b.email, 'login', b.otp)) throw wrong();
       return res.json({ token: d.sign(u), user: u });
     }
     // A new address: check the code without spending it, ask for a profile, then spend it when the account is created.
-    if (!b.role) { if (!check(b.email, 'signup', b.otp, undefined, false)) throw wrong(); return res.json({ needsProfile: true }); }
+    if (!b.role) { if (!codeOk(b.email, 'signup', b.otp, false)) throw wrong(); return res.json({ needsProfile: true }); }
     if (!b.name) throw d.fail(400, 'Enter your name');
     if (b.accept_terms !== true) throw d.fail(400, 'Please accept the Terms and Privacy Policy to create an account.');
-    if (!check(b.email, 'signup', b.otp)) throw wrong();
+    if (!codeOk(b.email, 'signup', b.otp)) throw wrong();
     const r = run('INSERT INTO users(phone,name,role,email,email_verified) VALUES(NULL,?,?,?,1)', b.name, b.role, b.email);
     const created = one('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid)); d.consent(created.id);
     res.json({ token: d.sign(created), user: created });

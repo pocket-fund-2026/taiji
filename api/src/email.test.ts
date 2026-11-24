@@ -138,6 +138,18 @@ test('email front door: new address creates an account after the code, known add
   delete process.env.PHONE_LOGIN; delete process.env.EMAIL_OTP_ENABLED;
 });
 
+test('review account: one demo address signs in with a fixed code and no mail is sent', async () => {
+  setTransport(fake); sent.length = 0; process.env.EMAIL_OTP_ENABLED = '1'; process.env.REVIEW_EMAIL = 'Review@Example.com'; process.env.REVIEW_OTP = '482915';
+  assert.equal((await request('/api/auth/email/start', '', 'POST', { email: 'review@example.com' })).status, 200); await wait(); assert.equal(sent.length, 0, 'no mail for the review address');
+  assert.equal((await request('/api/auth/email/signin', '', 'POST', { email: 'review@example.com', otp: '000000' })).status, 401);
+  assert.equal((await request('/api/auth/email/signin', '', 'POST', { email: 'review@example.com', otp: '482915' })).data.needsProfile, true);
+  const made = await request('/api/auth/email/signin', '', 'POST', { email: 'review@example.com', otp: '482915', role: 'couple', name: 'App Reviewer', accept_terms: true });
+  assert.equal(made.status, 200); assert.ok(made.data.token);
+  const back = await request('/api/auth/email/signin', '', 'POST', { email: 'review@example.com', otp: '482915' }); assert.equal(back.status, 200); assert.equal(back.data.user.id, made.data.user.id);
+  assert.equal((await request('/api/auth/email/signin', '', 'POST', { email: 'other@example.com', otp: '482915' })).status, 401, 'the fixed code works for no other address');
+  delete process.env.REVIEW_EMAIL; delete process.env.REVIEW_OTP; delete process.env.EMAIL_OTP_ENABLED;
+});
+
 test('a mail server failure never breaks the request and is recorded', async () => {
   setTransport({ sendMail: async () => { throw new Error('smtp down'); } });
   const g = await request('/api/grievances', '', 'POST', { name: 'Asha', contact: 'asha2@example.com', category: 'other', message: 'Testing a failing mail server' });
@@ -151,4 +163,14 @@ test('outbox keeps no message bodies and caps mail per recipient', async () => {
   assert.ok(!cols.includes('body') && !cols.includes('text'));
   const results = []; for (let i = 0; i < 10; i++) results.push((await sendMail({ to: 'flood@example.com', subject: 'x', text: 'x', template: 't' })).status);
   assert.equal(results.filter(s => s === 'sent').length, 8); assert.equal(results.filter(s => s === 'limited').length, 2);
+});
+
+test('plan preview: public, computes checklist, ceremonies and budget split without storing anything', async () => {
+  const before = (await request('/api/vendors')).status;
+  const r = await request('/api/plan/preview', '', 'POST', { date: '2027-12-05', city: 'Pune', community: 'Marathi', guests_est: 300, budget_paise: 2_000_000_00 });
+  assert.equal(r.status, 200); assert.ok(r.data.tasks.length >= 8); assert.ok(r.data.events.length >= 2); assert.ok(r.data.suggestions.length > 5);
+  assert.equal(r.data.budget.reduce((n: number, x: any) => n + x.allocated_paise, 0), 2_000_000_00, 'split adds up to the budget');
+  assert.equal(r.data.tasks.find((t: any) => t.title === 'Set wedding date & budget').done, true);
+  assert.equal((await request('/api/plan/preview', '', 'POST', { date: '2027-02-30', city: 'Pune', budget_paise: 100 })).status, 400, 'bad date rejected');
+  assert.equal(before, 200);
 });

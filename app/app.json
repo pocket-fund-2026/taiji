@@ -23,7 +23,8 @@
         "LSApplicationQueriesSchemes": [
           "whatsapp"
         ]
-      }
+      },
+      "buildNumber": "11"
     },
     "android": {
       "package": "com.shaadios.app",

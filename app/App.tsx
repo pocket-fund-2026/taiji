@@ -10,7 +10,8 @@ import { useFonts, Fraunces_600SemiBold, Fraunces_700Bold } from '@expo-google-f
 import { api, restore, setToken } from './src/api';
 import { LangCtx, useT, LANGS, setCur, tr } from './src/i18n';
 import Login, { SignedIn } from './src/auth';
-import { GuestProfile, GuestVendors, StartPlanning } from './src/guest';
+import { GuestProfile, GuestVendors } from './src/guest';
+import { LocalPlanner, importLocalPlan } from './src/localplan';
 import { Discover, VendorScreen, EnquiryForm, Plan } from './src/couple';
 import { CompareQuotes, DealScreen, DealsList } from './src/deals';
 import { Payouts } from './src/vendor';
@@ -75,7 +76,7 @@ const GuestTabs = function T() {
   return (<Tab.Navigator screenOptions={tabs}>
     <Tab.Screen name="Discover" options={{ title: t('discover'), tabBarIcon: ti('search'), headerShown: false }} component={Discover} />
     <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }} component={GuestVendors} />
-    <Tab.Screen name="Plan" options={{ title: t('plan'), tabBarIcon: ti('partnership'), headerShown: false }} component={StartPlanning} />
+    <Tab.Screen name="Plan" options={{ title: t('plan'), tabBarIcon: ti('partnership'), headerShown: false }} component={LocalPlanner} />
     <Tab.Screen name="Profile" options={{ title: t('profile'), tabBarIcon: ti('person') }} component={GuestProfile} /></Tab.Navigator>);
 };
 export default function App() {
@@ -91,7 +92,7 @@ export default function App() {
   useEffect(() => { boot(); }, []);
   const logout = async () => { await setToken(''); navState.current = undefined; setState('out'); };
   if (state === 'boot' || !fonts || seen === null) return <BootScreen fontsReady={!!fonts} />;
-  const signedIn = (result: SignedIn) => { landing.current = result.isNew ? (result.role === 'vendor' ? 'Store' : 'Plan') : undefined; navState.current = undefined; boot(); };
+  const signedIn = async (result: SignedIn) => { landing.current = result.isNew ? (result.role === 'vendor' ? 'Store' : 'Plan') : undefined; navState.current = undefined; await importLocalPlan(); boot(); };
   if (state === 'out') return (<LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><GuestCtx.Provider value={true}><NavigationContainer key={'guest-' + lang}>
     <Stack.Navigator initialRouteName={seen ? 'Home' : 'Onboarding'} screenOptions={{ ...hdr, animation: 'slide_from_right' }}>
       <Stack.Screen name="Onboarding" options={{ headerShown: false, gestureEnabled: false }}>{(p: any) => <Onboarding onDone={(to) => { p.navigation.reset({ index: 0, routes: [{ name: 'Home' }] }); if (to === 'signin') setTimeout(() => p.navigation.navigate('SignIn'), 0); }} />}</Stack.Screen>

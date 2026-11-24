@@ -4,7 +4,8 @@ import { readRuntimeConfig, loadSecret, corsOrigins, adminPhones, POLICY_VERSION
 import { mountCatalog, vendorCatalog } from './catalog.ts';
 import { mailUser, notify, compose, isEmail, normEmail, siteUrl, rupees, mailConfigured } from './mailer.ts';
 import { mountEmailAuth } from './email-auth.ts';
-import { addAfterTasks, vendorDecided } from './traditions.ts';
+import { guideForWedding } from './planning-guide.ts';
+import { addAfterTasks, vendorDecided, AFTER_TASKS } from './traditions.ts';
 import express from 'express'; import cors from 'cors'; import jwt from 'jsonwebtoken'; import { z } from 'zod'; import { randomBytes } from 'node:crypto';
 import { db, q, one, run } from './db.ts'; import { mountExtras, TEMPLATES } from './extras.ts'; import { seed } from './seed.ts'; import { mountSite, mountSiteEarly, spamGuard } from './site.ts'; import { mountCompliance } from './compliance.ts';
 const config = readRuntimeConfig();
@@ -131,6 +132,21 @@ app.post('/api/wedding', auth, wrap((req: any, res: any) => {
   names.forEach((n, i) => run('INSERT INTO events(wedding_id,name,date,sort) VALUES(?,?,?,?)', id, n, new Date(d.getTime() - (names.length - 1 - i) * 864e5).toISOString().slice(0, 10), i));
   for (const [c, p] of Object.entries(SPLIT)) run('INSERT INTO budget_items(wedding_id,category,allocated_paise) VALUES(?,?,?)', id, c, Math.round(b.budget_paise * p / 100));
   res.json(one('SELECT * FROM weddings WHERE id=?', id));
+}));
+// Plan without an account: the same starter checklist, ceremonies and budget split a new wedding gets, computed but never stored.
+// The app keeps the result on the phone and moves it onto an account if the person signs up later.
+const previewHits = new Map<string, number[]>();
+app.post('/api/plan/preview', wrap((req: any, res: any) => {
+  const now = Date.now(); const hits = (previewHits.get(req.ip) || []).filter(x => now - x < 600000);
+  if (hits.length >= 60) throw fail(429, 'Too many requests. Try again in a few minutes.');
+  previewHits.set(req.ip, [...hits, now]);
+  const b = z.object({ date: dateSchema, city: z.string().trim().min(1).max(80), community: z.string().default('North Indian Hindu'), guests_est: z.number().int().positive().max(100000).default(200), budget_paise: z.number().int().positive().max(100_000_000_000) }).parse(req.body);
+  const dayOf = (iso: string, add: number) => new Date(+new Date(iso + 'T00:00:00Z') + add * 864e5).toISOString().slice(0, 10);
+  const tasks = [...starterDates(b.date, new Date()).map(([title, due]) => ({ title, due, done: title === 'Set wedding date & budget' })), ...AFTER_TASKS.map(([title, off]) => ({ title, due: dayOf(b.date, off), done: false }))];
+  const names = TEMPLATES[b.community] || TEMPLATES['North Indian Hindu'];
+  const events = names.map((name, i) => ({ name, date: dayOf(b.date, -(names.length - 1 - i)) }));
+  const budget = Object.entries(SPLIT).map(([category, p]) => ({ category, allocated_paise: Math.round(b.budget_paise * p / 100) }));
+  res.json({ wedding: { ...b }, tasks, events, budget, suggestions: guideForWedding(b.date, tasks, new Date(), b.community).filter(i => !i.already_added) });
 }));
 const W = (req: any) => { const w = myWedding(req.user.id); if (!w) throw fail(400, 'Create your wedding first'); return w; };
 app.get('/api/tasks', auth, wrap((req: any, res: any) => res.json(q('SELECT * FROM tasks WHERE wedding_id=? ORDER BY due', W(req).id))));
