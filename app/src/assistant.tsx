@@ -1,7 +1,8 @@
 // "Ask": the in-app AI assistant. A small open model runs on our own server; vendor search is plain database matching, so
 // vendors shown here are always real listings. Chat history is kept on this phone only. Works for signed-out people too.
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 import { LangCtx, tr } from './i18n';
@@ -48,7 +49,7 @@ async function buildContext(): Promise<Record<string, unknown>> {
 }
 
 export function Assistant({ navigation }: any) {
-  const { lang } = useContext(LangCtx);
+  const { lang } = useContext(LangCtx); const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<'checking' | 'ready' | 'off'>('checking');
   const [turns, setTurns] = useState<Turn[]>([]); const [text, setText] = useState(''); const [busy, setBusy] = useState(false);
   const [vendorMode, setVendorMode] = useState(false); const [showDrafts, setShowDrafts] = useState(false);
@@ -75,8 +76,8 @@ export function Assistant({ navigation }: any) {
   const clear = () => { setTurns([]); saveChat([]); };
   const draftKinds: [string, string][] = [['vendor_enquiry', 'Message to a vendor'], ['invitation', 'Invitation'], ['thanks', 'Thank-you note']];
 
-  return <View style={{ flex: 1, backgroundColor: C.bg }}>
-    <View style={{ backgroundColor: C.primary, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={{ backgroundColor: C.primary, paddingHorizontal: 20, paddingTop: insets.top + 12, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(232,200,119,0.2)', alignItems: 'center', justifyContent: 'center' }}><Icon name="star" size={22} color={C.goldSoft} /></View>
       <View style={{ flex: 1 }}>
         <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 22, color: C.goldSoft }}>{tr('Ask Taiji')}</Text>
@@ -124,5 +125,5 @@ export function Assistant({ navigation }: any) {
         <M style={{ fontSize: 11, textAlign: 'center' }}>{tr('AI answers can be wrong. Check important details. Built with Llama.')}</M>
       </View>
     </>}
-  </View>;
+  </KeyboardAvoidingView>;
 }

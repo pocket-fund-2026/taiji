@@ -8,6 +8,7 @@ import { getPrefs } from './prefs';
 import { tr } from './i18n';
 import { Bar, Btn, C, Card, Check, Chip, DateField, F, Input, M, confirm, dateIN, inr, todayISO } from './ui';
 import { FloralArch } from './visuals';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CityPicker } from './citypicker';
 import { COMMUNITIES } from './india';
 import { buildPlan, checkPlanInput } from './planengine';
@@ -59,7 +60,8 @@ export function LocalPlanner({ navigation }: any) {
 }
 
 function Hero({ title, text }: { title: string; text: string }) {
-  return <View style={{ backgroundColor: C.primary, padding: 24, paddingTop: 32, overflow: 'hidden' }}>
+  const insets = useSafeAreaInsets();   // keeps the heading clear of the notch / status bar
+  return <View style={{ backgroundColor: C.primary, padding: 24, paddingTop: insets.top + 24, overflow: 'hidden' }}>
     <View pointerEvents="none" style={{ position: 'absolute', right: -30, bottom: -50, opacity: 0.3 }}><FloralArch size={160} color={C.goldSoft} /></View>
     <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 28, lineHeight: 34, color: C.goldSoft, maxWidth: 300 }}>{title}</Text>
     <Text maxFontSizeMultiplier={1.3} style={{ color: '#F4DDE5', fontSize: 15, lineHeight: 22, marginTop: 8, maxWidth: 320 }}>{text}</Text>
@@ -104,11 +106,11 @@ function Setup({ navigation, onCreated }: { navigation: any; onCreated: (p: LPPl
 }
 
 function Dashboard({ plan, update, navigation, onReset }: { plan: LPPlan; update: (fn: (p: LPPlan) => LPPlan) => void; navigation: any; onReset: () => void }) {
-  const [tab, setTab] = useState<'tasks' | 'budget' | 'guests'>('tasks');
+  const [tab, setTab] = useState<'tasks' | 'budget' | 'guests'>('tasks'); const insets = useSafeAreaInsets();
   const today = todayISO(); const left = daysTo(plan.wedding.date);
   const done = plan.tasks.filter(t => t.done).length; const pct = plan.tasks.length ? (done / plan.tasks.length) * 100 : 0;
   return <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-    <View style={{ backgroundColor: C.primary, padding: 24, paddingTop: 28, overflow: 'hidden' }}>
+    <View style={{ backgroundColor: C.primary, padding: 24, paddingTop: insets.top + 20, overflow: 'hidden' }}>
       <View pointerEvents="none" style={{ position: 'absolute', right: -30, bottom: -50, opacity: 0.3 }}><FloralArch size={160} color={C.goldSoft} /></View>
       <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, letterSpacing: 2.5, color: '#E8C877', fontWeight: '700', textTransform: 'uppercase' }}>{plan.wedding.city} · {dateIN(plan.wedding.date)}</Text>
       <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 34, lineHeight: 40, color: C.goldSoft, marginTop: 6 }}>{left > 0 ? `${left} ${tr('days to go')}` : left === 0 ? tr('Your wedding day') : tr('Congratulations')}</Text>
