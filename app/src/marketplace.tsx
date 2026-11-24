@@ -136,8 +136,7 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
         </Pressable>; })}
       </ScrollView>
       <M style={{ marginTop: 20, marginBottom: 8 }}>{tr('Wedding city')}</M>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}><Chip label={tr('All cities')} on={!city} onPress={() => setCity('')} /></View>
-      <CityPicker value={city} onChange={setCity} listed={listed} />
+      <CityPicker value={city} onChange={setCity} allowAll />
       {comparison.length > 0 && <Card><View style={s.row}><H style={{ fontSize: 20 }}>{tr('Compare vendors')} ({comparison.length}/3)</H><Btn small kind="ghost" title={tr('Clear')} onPress={() => { setComparison([]); setShowComparison(false); }} /></View>
         <M>{tr('Select up to three vendors to compare prices, location and ratings.')}</M><Btn kind="quiet" title={showComparison ? tr('Hide comparison') : tr('Show comparison')} onPress={() => setShowComparison(!showComparison)} />
         {showComparison && <ScrollView horizontal contentContainerStyle={{ gap: 12 }}>{comparison.map(item => <View key={item.id} style={{ width: 220, padding: 16, backgroundColor: C.bg, borderRadius: 12 }}><H style={{ fontSize: 20 }}>{item.name}</H><M>{categoryLabel(item.category)} · {item.city}</M><H style={{ color: C.primary }}>{item.start_paise ? inr(item.start_paise) : tr('Price not listed')}</H><M>{item.rating ? `${item.rating}/5 · ${item.reviews} ${tr('reviews')}` : tr('No reviews yet')}</M>{item.verified ? <Tag tone="ok" label={tr('Verified')} /> : null}<Btn small title={tr('View profile')} onPress={() => openVendor(item.id)} /><Btn small kind="ghost" title={tr('Remove')} onPress={() => toggleCompare(item)} /></View>)}</ScrollView>}
