@@ -30,6 +30,7 @@ const leak = (s: string) => /(\+?91[\s-]?)?[6-9]\d{9}|\b[\w.-]+@[a-z]{2,}\b/i.te
 const otpTries = new Map<string, number[]>();
 app.post('/api/auth/otp', wrap((req: any, res: any) => {
   const { phone } = z.object({ phone: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number') }).parse(req.body);
+  if (process.env.PHONE_LOGIN === 'off' && !adminPhones().includes(phone)) throw fail(503, 'Sign in with your email instead.');
   const now = Date.now(); const t = (otpTries.get(phone) || []).filter(x => now - x < 600000);
   if (t.length >= 5) { const mins = Math.max(1, Math.ceil((600000 - (now - t[0])) / 60000)); throw fail(429, `Too many codes requested for this number. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`); }
   otpTries.set(phone, [...t, now]);
@@ -38,6 +39,7 @@ app.post('/api/auth/otp', wrap((req: any, res: any) => {
 const verifyTries = new Map<string, number[]>();
 app.post('/api/auth/verify', wrap((req: any, res: any) => {
   const b = z.object({ phone: z.string().regex(/^[6-9]\d{9}$/), otp: z.string(), role: z.enum(['couple', 'vendor']).optional(), name: z.string().trim().min(2, 'Enter your name').max(80).optional(), accept_terms: z.boolean().optional() }).parse(req.body);
+  if (process.env.PHONE_LOGIN === 'off' && !adminPhones().includes(b.phone)) throw fail(503, 'Sign in with your email instead.');
   // Wrong codes are limited per number so a six-digit code cannot be guessed.
   const now = Date.now(); const bad = (verifyTries.get(b.phone) || []).filter(x => now - x < 600000);
   if (bad.length >= 8) throw fail(429, 'Too many wrong codes. Try again in a few minutes.');
@@ -57,7 +59,7 @@ app.post('/api/auth/verify', wrap((req: any, res: any) => {
 }));
 app.get('/api/me', auth, wrap((req: any, res: any) => res.json({ consent_current: !!one("SELECT 1 x FROM consents WHERE user_id=? AND purpose=? AND granted=1", req.user.id, 'terms:' + POLICY_VERSION), user: one('SELECT * FROM users WHERE id=?', req.user.id), wedding: myWedding(req.user.id) || null, vendor: myVendor(req.user.id) || null })));
 // Email verification and email sign-in (needs SMTP settings; see docs/EMAIL.md).
-mountEmailAuth(app, { auth, wrap, fail, secret: SECRET, sign: (u: any) => jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }) });
+mountEmailAuth(app, { auth, wrap, fail, secret: SECRET, sign: (u: any) => jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '30d' }), consent: (uid: number) => { for (const purpose of ['terms', 'privacy_notice']) run('INSERT INTO consents(user_id,purpose,granted) VALUES(?,?,1)', uid, `${purpose}:${POLICY_VERSION}`); } });
 // Profile edits: display name and app language.
 app.patch('/api/me', auth, wrap((req: any, res: any) => {
   const b = z.object({ name: z.string().trim().min(2, 'Enter your name').max(80).optional(), lang: z.enum(['en', 'hi', 'mr', 'ta', 'te', 'bn', 'gu', 'pa', 'kn', 'ml']).optional() }).parse(req.body);

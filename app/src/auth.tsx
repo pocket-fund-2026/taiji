@@ -12,6 +12,7 @@ const RESEND_SECONDS = 30;
 // Accept pasted "+91 98765 43210" / "098765 43210" and keep the last 10 digits.
 const cleanPhone = (t: string) => { const d = t.replace(/\D/g, ''); return (d.length > 10 && /^(91|0)/.test(d) ? d.replace(/^(91|0)/, '') : d).slice(0, 10); };
 const validPhone = (p: string) => /^[6-9]\d{9}$/.test(p);
+const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e.trim());
 
 // After sign-in the app opens where the person can do something useful: new couples set up the wedding, new vendors their storefront.
 export type SignedIn = { isNew: boolean; role: 'couple' | 'vendor' };
@@ -23,18 +24,23 @@ const ROLE_OPTIONS: ['couple' | 'vendor', IconName, string, string][] = [
 
 export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: SignedIn) => void; onClose?: () => void; lang: string; setLang: (l: string) => void }) {
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<'phone' | 'email'>('phone'); const [methods, setMethods] = useState<{ email: boolean; phone: boolean } | null>(null); const [email, setEmail] = useState('');
   const [phone, setPhone] = useState(''); const [otp, setOtp] = useState(''); const [step, setStep] = useState<0 | 1 | 2>(0);
   const [role, setRole] = useState<'couple' | 'vendor' | null>(null); const [name, setName] = useState(''); const [server, setServer] = useState(getBase()); const [busy, setBusy] = useState(false);
   const [showServer, setShowServer] = useState(false); const [accept, setAccept] = useState(false);
   const [error, setError] = useState(''); const [wait, setWait] = useState(0);
   const submitted = useRef('');
+  // Ask the server which ways in it offers; email is the front door whenever it is on.
+  useEffect(() => { api('/auth/methods').then((m: any) => { setMethods(m); if (m?.email) setMode('email'); }).catch(() => setMethods({ email: false, phone: true })); }, [server]);
+  const em = mode === 'email'; const who = em ? email.trim().toLowerCase() : phone;
   useEffect(() => { if (wait <= 0) return; const t = setTimeout(() => setWait(wait - 1), 1000); return () => clearTimeout(t); }, [wait]);
 
-  const sendOtp = async () => { await api('/auth/otp', 'POST', { phone }); setOtp(''); submitted.current = ''; setStep(1); setWait(RESEND_SECONDS); };
+  const sendOtp = async () => { await api(em ? '/auth/email/start' : '/auth/otp', 'POST', em ? { email: who } : { phone }); setOtp(''); submitted.current = ''; setStep(1); setWait(RESEND_SECONDS); };
   const go = async (code = otp) => {
     if (busy) return;
     setError('');
-    if (step === 0 && !validPhone(phone)) return setError(tr('Enter a valid 10-digit mobile number.'));
+    if (step === 0 && em && !validEmail(email)) return setError(tr('Enter a valid email address.'));
+    if (step === 0 && !em && !validPhone(phone)) return setError(tr('Enter a valid 10-digit mobile number.'));
     if (step === 1 && code.length !== 6) return setError(tr('Enter the 6-digit code.'));
     if (step === 2 && name.trim().length < 2) return setError(tr('Enter your name to continue.'));
     if (step === 2 && !role) return setError(tr('Choose whether you are planning a wedding or a vendor.'));
@@ -43,7 +49,8 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
     try {
       await setBase(server);
       if (step === 0) { await sendOtp(); return; }
-      const r = await api('/auth/verify', 'POST', step === 2 ? { phone, otp: code, role, name: name.trim(), accept_terms: true } : { phone, otp: code });
+      const id = em ? { email: who } : { phone };
+      const r = await api(em ? '/auth/email/signin' : '/auth/verify', 'POST', step === 2 ? { ...id, otp: code, role, name: name.trim(), accept_terms: true } : { ...id, otp: code });
       if (r.needsProfile) { setStep(2); return; }
       await setToken(r.token); onDone({ isNew: step === 2, role: r.user?.role === 'vendor' ? 'vendor' : 'couple' });
     } catch (e: any) {
@@ -79,17 +86,18 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
       <View style={{ paddingHorizontal: 24, paddingTop: 24, width: '100%', maxWidth: 520, alignSelf: 'center', flexGrow: 1 }}>
         <Rise>
           <H style={{ marginTop: 0 }}>{step === 0 ? tr('Sign in or create an account') : step === 1 ? tr('Enter the code') : tr('Tell us about yourself')}</H>
-          {step === 0 ? <M style={{ marginTop: -4, marginBottom: 16 }}>{tr('We’ll send a 6-digit code to your mobile. New here? The same steps create your account.')}</M> : null}
+          {step === 0 ? <M style={{ marginTop: -4, marginBottom: 16 }}>{em ? tr('We’ll email you a 6-digit code. New here? The same steps create your account.') : tr('We’ll send a 6-digit code to your mobile. New here? The same steps create your account.')}</M> : null}
 
-          {step === 0 ? <Input label={tr('Mobile number')} prefix="+91" value={phone} onChangeText={t => { setPhone(cleanPhone(t)); setError(''); }} keyboardType="number-pad" textContentType="telephoneNumber" autoComplete="tel" placeholder="98765 43210" returnKeyType="go" onSubmitEditing={() => go()} />
+          {step === 0 && em ? <Input label={tr('Email address')} value={email} onChangeText={t => { setEmail(t); setError(''); }} keyboardType="email-address" textContentType="emailAddress" autoComplete="email" autoCapitalize="none" autoCorrect={false} placeholder="you@example.com" returnKeyType="go" onSubmitEditing={() => go()} />
+            : step === 0 ? <Input label={tr('Mobile number')} prefix="+91" value={phone} onChangeText={t => { setPhone(cleanPhone(t)); setError(''); }} keyboardType="number-pad" textContentType="telephoneNumber" autoComplete="tel" placeholder="98765 43210" returnKeyType="go" onSubmitEditing={() => go()} />
             : <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{step === 2 ? <Tag tone="ok" icon="check" label={tr('Verified')} /> : null}<Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontVariant: ['tabular-nums'] }}>+91 {phone.slice(0, 5)} {phone.slice(5)}</Text></View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{step === 2 ? <Tag tone="ok" icon="check" label={tr('Verified')} /> : null}<Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontVariant: ['tabular-nums'] }}>{em ? who : `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`}</Text></View>
                 <Pressable accessibilityRole="button" onPress={changeNumber} hitSlop={10} disabled={busy}><Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontSize: 15, fontWeight: '500' }}>{tr('Change')}</Text></Pressable>
               </View>}
 
           {step === 1 ? <>
             <Input label={tr('6-digit code')} value={otp} onChangeText={typeCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="sms-otp" maxLength={6} placeholder="••••••" autoFocus style={{ fontSize: 20, letterSpacing: 6 }} />
-            <M style={{ marginTop: -4, marginBottom: 12 }}>{tr('Demo build: the code is always 123456.')}</M>
+            {em ? <M style={{ marginTop: -4, marginBottom: 12 }}>{tr('Check your inbox and spam folder. The code is valid for 10 minutes.')}</M> : <M style={{ marginTop: -4, marginBottom: 12 }}>{tr('Demo build: the code is always 123456.')}</M>}
           </> : null}
 
           {step === 2 ? <>
@@ -111,12 +119,13 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
 
           {!!error && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text>}
           <Btn title={busy ? tr('Please wait…') : step === 0 ? tr('Send code') : step === 1 ? tr('Verify') : tr('Create account')} onPress={() => go()} disabled={busy} />
+          {step === 0 && methods?.email && methods?.phone ? <Btn kind="quiet" title={em ? tr('Use my mobile number instead') : tr('Use my email instead')} onPress={() => { setMode(em ? 'phone' : 'email'); setError(''); }} disabled={busy} /> : null}
           {step === 1 ? <Btn kind="quiet" title={wait > 0 ? `${tr('Resend code in')} ${wait}s` : tr('Resend code')} onPress={resend} disabled={busy || wait > 0} /> : null}
         </Rise>
 
 
         <View style={{ flexGrow: 1 }} />
-        <M style={{ marginTop: 32, fontSize: 12, textAlign: 'center' }}>{tr('Demo build: OTP and payments are simulated. Demo vendor: 9000000001.')}</M>
+        <M style={{ marginTop: 32, fontSize: 12, textAlign: 'center' }}>{em ? tr('Demo build: payments are simulated.') : tr('Demo build: OTP and payments are simulated. Demo vendor: 9000000001.')}</M>
         <Pressable accessibilityRole="button" onPress={() => setShowServer(!showServer)} style={{ alignSelf: 'center', minHeight: 40, justifyContent: 'center' }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.mute, fontSize: 12, textDecorationLine: 'underline' }}>{showServer ? tr('Hide server settings') : tr('Server settings')}</Text></Pressable>
         {showServer && <Input label={tr('Server address')} value={server} onChangeText={setServer} autoCapitalize="none" />}
       </View>

@@ -117,6 +117,27 @@ test('email sign-in: off by default, real one-time codes, no account guessing, a
   delete process.env.EMAIL_OTP_ENABLED;
 });
 
+test('email front door: new address creates an account after the code, known address signs in, codes are single use', async () => {
+  setTransport(fake); sent.length = 0; process.env.EMAIL_OTP_ENABLED = '1';
+  assert.deepEqual((await request('/api/auth/methods')).data, { email: true, phone: true });
+  assert.equal((await request('/api/auth/email/start', '', 'POST', { email: 'brandnew@example.com' })).status, 200); await wait();
+  assert.equal(sent.length, 1); assert.equal(sent[0].to, 'brandnew@example.com'); const code = codeIn(sent[0]);
+  assert.equal((await request('/api/auth/email/signin', '', 'POST', { email: 'brandnew@example.com', otp: code === '111111' ? '222222' : '111111' })).status, 401, 'wrong code');
+  const peek = await request('/api/auth/email/signin', '', 'POST', { email: 'brandnew@example.com', otp: code });
+  assert.equal(peek.status, 200); assert.equal(peek.data.needsProfile, true); assert.equal(peek.data.token, undefined);
+  assert.equal((await request('/api/auth/email/signin', '', 'POST', { email: 'brandnew@example.com', otp: code, role: 'couple', name: 'Asha Rao' })).status, 400, 'terms must be accepted');
+  const made = await request('/api/auth/email/signin', '', 'POST', { email: 'brandnew@example.com', otp: code, role: 'couple', name: 'Asha Rao', accept_terms: true });
+  assert.equal(made.status, 200); assert.ok(made.data.token); assert.equal(made.data.user.email, 'brandnew@example.com'); assert.equal(made.data.user.phone, null);
+  const me = await request('/api/me', made.data.token); assert.equal(me.status, 200); assert.equal(me.data.consent_current, true);
+  assert.equal((await request('/api/auth/email/signin', '', 'POST', { email: 'brandnew@example.com', otp: code })).status, 401, 'single use');
+  sent.length = 0; await request('/api/auth/email/start', '', 'POST', { email: 'brandnew@example.com' }); await wait();
+  const again = await request('/api/auth/email/signin', '', 'POST', { email: 'brandnew@example.com', otp: codeIn(sent[0]) });
+  assert.equal(again.status, 200); assert.equal(again.data.user.id, made.data.user.id, 'returning person gets the same account');
+  process.env.PHONE_LOGIN = 'off';
+  assert.equal((await request('/api/auth/otp', '', 'POST', { phone: '9812400009' })).status, 503, 'phone login can be switched off');
+  delete process.env.PHONE_LOGIN; delete process.env.EMAIL_OTP_ENABLED;
+});
+
 test('a mail server failure never breaks the request and is recorded', async () => {
   setTransport({ sendMail: async () => { throw new Error('smtp down'); } });
   const g = await request('/api/grievances', '', 'POST', { name: 'Asha', contact: 'asha2@example.com', category: 'other', message: 'Testing a failing mail server' });

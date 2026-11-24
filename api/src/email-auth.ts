@@ -18,7 +18,7 @@ function limited(key: string, max: number, windowMs = WINDOW) {
   hits.set(key, [...t, now]); return false;
 }
 
-export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: number, m: string) => Error; secret: string; sign: (u: any) => string }) {
+export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: number, m: string) => Error; secret: string; sign: (u: any) => string; consent: (userId: number) => void }) {
   const hash = (email: string, code: string) => createHash('sha256').update(`${email}:${code}:${d.secret}`).digest();
   const same = (a: Buffer, b: Buffer) => a.length === b.length && timingSafeEqual(a, b);
   const emailSchema = z.string().trim().max(254).refine(isEmail, 'Enter a valid email address').transform(normEmail);
@@ -33,12 +33,12 @@ export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: nu
   }
 
   /** Checks a code and spends it. Every attempt counts, right or wrong. */
-  function check(email: string, purpose: string, code: string, userId?: number) {
+  function check(email: string, purpose: string, code: string, userId?: number, spend = true) {
     const row = one("SELECT * FROM email_codes WHERE email=? AND purpose=? AND used=0 ORDER BY id DESC LIMIT 1", email, purpose);
     if (!row || row.expires_at < Date.now() || row.attempts >= 5 || (userId && row.user_id !== userId)) return null;
     run('UPDATE email_codes SET attempts=attempts+1 WHERE id=?', row.id);
     if (!/^\d{6}$/.test(code) || !same(hash(email, code), Buffer.from(row.code_hash, 'hex'))) return null;
-    run('UPDATE email_codes SET used=1 WHERE id=?', row.id);
+    if (spend) run('UPDATE email_codes SET used=1 WHERE id=?', row.id);
     return row;
   }
 
@@ -82,5 +82,40 @@ export function mountEmailAuth(app: any, d: { auth: any; wrap: any; fail: (s: nu
     const u = row && one('SELECT * FROM users WHERE id=? AND email=? AND email_verified=1', row.user_id, b.email);
     if (!u || adminPhones().includes(u.phone)) throw d.fail(401, 'That code is not right or has expired.');
     res.json({ token: d.sign(u), user: u });
+  }));
+
+  // Email as the front door: one flow for new and returning people. Same response for known and unknown addresses.
+  //   GET  /api/auth/methods        which sign-in methods this server offers
+  //   POST /api/auth/email/start    send a code to any address
+  //   POST /api/auth/email/signin   code (+ name, role, accepted terms for a new account) -> session
+  app.get('/api/auth/methods', d.wrap((_req: any, res: any) => res.json({ email: loginEnabled(), phone: process.env.PHONE_LOGIN !== 'off' })));
+
+  app.post('/api/auth/email/start', d.wrap(async (req: any, res: any) => {
+    if (!loginEnabled()) throw d.fail(503, 'Email sign-in is not available.');
+    const { email } = z.object({ email: emailSchema }).parse(req.body);
+    if (limited(`es:${email}`, 5) || limited(`esip:${req.ip}`, 30)) throw d.fail(429, 'Too many codes requested. Try again in a few minutes.');
+    const u = one('SELECT * FROM users WHERE email=? AND email_verified=1', email);
+    if (!(u && adminPhones().includes(u.phone))) await issue(u || { id: 0 }, email, u ? 'login' : 'signup');
+    res.json({ ok: true });
+  }));
+
+  app.post('/api/auth/email/signin', d.wrap((req: any, res: any) => {
+    if (!loginEnabled()) throw d.fail(503, 'Email sign-in is not available.');
+    const b = z.object({ email: emailSchema, otp: z.string().trim().length(6), role: z.enum(['couple', 'vendor']).optional(), name: z.string().trim().min(2, 'Enter your name').max(80).optional(), accept_terms: z.boolean().optional() }).parse(req.body);
+    if (limited(`esv:${b.email}`, 10) || limited(`esvip:${req.ip}`, 60)) throw d.fail(429, 'Too many attempts. Try again in a few minutes.');
+    const wrong = () => d.fail(401, 'That code is not right or has expired.');
+    const u = one('SELECT * FROM users WHERE email=? AND email_verified=1', b.email);
+    if (u) {
+      if (adminPhones().includes(u.phone) || !check(b.email, 'login', b.otp)) throw wrong();
+      return res.json({ token: d.sign(u), user: u });
+    }
+    // A new address: check the code without spending it, ask for a profile, then spend it when the account is created.
+    if (!b.role) { if (!check(b.email, 'signup', b.otp, undefined, false)) throw wrong(); return res.json({ needsProfile: true }); }
+    if (!b.name) throw d.fail(400, 'Enter your name');
+    if (b.accept_terms !== true) throw d.fail(400, 'Please accept the Terms and Privacy Policy to create an account.');
+    if (!check(b.email, 'signup', b.otp)) throw wrong();
+    const r = run('INSERT INTO users(phone,name,role,email,email_verified) VALUES(NULL,?,?,?,1)', b.name, b.role, b.email);
+    const created = one('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid)); d.consent(created.id);
+    res.json({ token: d.sign(created), user: created });
   }));
 }
