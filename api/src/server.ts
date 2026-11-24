@@ -91,6 +91,19 @@ app.get('/api/vendors', wrap((req: any, res: any) => {
   res.json(q(`SELECT v.*,${ratingSql},(SELECT url FROM vendor_photos p WHERE p.vendor_id=v.id ORDER BY p.id LIMIT 1) cover_url FROM vendors v WHERE ${w.join(' AND ')} ORDER BY sample ASC, unclaimed ASC, verified DESC, id LIMIT 200`, ...a));
 }));
 // Counts for the Discover dashboard: how many listings exist per service, optionally for one city (vendors who travel count everywhere).
+// Where listings exist today, so the app can say honestly which cities have vendors and which do not yet.
+run("CREATE TABLE IF NOT EXISTS city_interest(id INTEGER PRIMARY KEY, city TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+app.get('/api/vendors/cities', wrap((_req: any, res: any) => res.json(q("SELECT city, COUNT(*) vendors FROM vendors WHERE city IS NOT NULL AND city!='' GROUP BY city ORDER BY vendors DESC, city"))));
+// "Tell us you want vendors here": a bare count per city, no name, number or email, used to decide where to add listings next.
+const interestHits = new Map<string, number[]>();
+app.post('/api/city-interest', wrap((req: any, res: any) => {
+  const now = Date.now(); const hits = (interestHits.get(req.ip) || []).filter(x => now - x < 3600000);
+  if (hits.length >= 10) throw fail(429, 'Thanks, we have your requests. Try again later.');
+  interestHits.set(req.ip, [...hits, now]);
+  const b = z.object({ city: z.string().trim().min(2).max(60), category: z.string().trim().max(30).default('') }).parse(req.body);
+  run('INSERT INTO city_interest(city,category) VALUES(?,?)', b.city, b.category);
+  res.json({ ok: true });
+}));
 app.get('/api/vendors/summary', wrap((req: any, res: any) => {
   const city = typeof req.query.city === 'string' ? req.query.city : ''; const w = city ? 'WHERE (city=? OR travels=1)' : ''; const a = city ? [city] : [];
   const by_category: Record<string, number> = {}; let total = 0;

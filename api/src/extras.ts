@@ -37,6 +37,13 @@ export const TEMPLATES: Record<string, string[]> = {
   'Christian': ['Engagement', 'Church Wedding', 'Reception'],
   'Jain': ['Sagai', 'Mehndi', 'Pheras', 'Reception'],
   'Inter-faith': ['Court Registration', 'Cocktail', 'Reception'],
+  // Regional additions: ceremony names are a starting point for families to edit, and should be reviewed with each community.
+  'Tamil': ['Nichayathartham', 'Nalangu', 'Muhurtham', 'Reception'],
+  'Telugu': ['Nischitartham', 'Pellikuthuru', 'Mangala Snanam', 'Pelli', 'Reception'],
+  'Malayali': ['Engagement', 'Wedding', 'Reception'],
+  'Sindhi': ['Sagai', 'Mehndi', 'Sangeet', 'Lavan Phere', 'Reception'],
+  'Parsi': ['Roce', 'Madavsaro', 'Adravanu', 'Lagan', 'Reception'],
+  'Assamese': ['Juran Diya', 'Tel Diya', 'Biya', 'Reception'],
 };
 export function mountExtras(app: any, auth: any, myWedding: (u: number) => any, myVendor: (u: number) => any, adminIds: () => number[]) {
   const W = (req: any) => { const w = myWedding(req.user.id) || one('SELECT w.* FROM weddings w JOIN members m ON m.wedding_id=w.id JOIN users u ON u.phone=m.phone WHERE u.id=?', req.user.id); if (!w) throw fail(400, 'Create your wedding first'); return w; };

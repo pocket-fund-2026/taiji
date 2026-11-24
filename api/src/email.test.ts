@@ -174,3 +174,13 @@ test('plan preview: public, computes checklist, ceremonies and budget split with
   assert.equal((await request('/api/plan/preview', '', 'POST', { date: '2027-02-30', city: 'Pune', budget_paise: 100 })).status, 400, 'bad date rejected');
   assert.equal(before, 200);
 });
+
+test('india-wide: listed cities, city interest counts, and regional traditions', async () => {
+  const cities = await request('/api/vendors/cities'); assert.equal(cities.status, 200); assert.ok(Array.isArray(cities.data));
+  assert.equal((await request('/api/city-interest', '', 'POST', { city: 'Jaipur', category: 'venue' })).status, 200);
+  assert.equal((await request('/api/city-interest', '', 'POST', { city: 'J' })).status, 400, 'too short is rejected');
+  const t = await request('/api/plan/preview', '', 'POST', { date: '2027-12-05', city: 'Chennai', community: 'Tamil', budget_paise: 100000000 });
+  assert.deepEqual(t.data.events.map((e: any) => e.name), ['Nichayathartham', 'Nalangu', 'Muhurtham', 'Reception']);
+  const unknown = await request('/api/plan/preview', '', 'POST', { date: '2027-12-05', city: 'Imphal', community: 'Something else', budget_paise: 100000000 });
+  assert.equal(unknown.status, 200, 'any city and unknown tradition still produce a plan');
+});

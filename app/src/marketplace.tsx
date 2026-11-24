@@ -8,9 +8,9 @@ import { CategoryCover, FloralArch, SectionTitle, VendorCover, categoryPalette }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PortfolioPhoto, VendorCatalog } from './catalog';
 import { getPrefs, Prefs } from './prefs';
+import { CityPicker } from './citypicker';
 
 const CATEGORIES: [string, string][] = [['photographer', 'Photography'], ['makeup', 'Makeup'], ['mehndi', 'Mehndi'], ['decor', 'Decor'], ['venue', 'Venues'], ['caterer', 'Catering'], ['dj', 'DJ & music'], ['pandit', 'Pandit']];
-const CITIES = ['Mumbai', 'Pune', 'Nashik', 'Nagpur'];
 // Services grouped the way a family thinks about them, each group collapsible, like the sections of a dashboard.
 const GROUPS: [string, string[]][] = [['Venue and food', ['venue', 'caterer']], ['Look and decor', ['decor', 'makeup', 'mehndi']], ['Capture and music', ['photographer', 'dj']], ['Ceremony', ['pandit']]];
 const daysTo = (date?: string) => { if (!date) return null; const d = Math.ceil((new Date(date + 'T00:00:00').getTime() - Date.now()) / 86400000); return Number.isFinite(d) && d >= 0 ? d : null; };
@@ -88,6 +88,9 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
   const toggleCompare = (vendor: any) => setComparison(items => items.some(item => item.id === vendor.id) ? items.filter(item => item.id !== vendor.id) : items.length < 3 ? [...items, vendor] : items);
   const [city, setCity] = useState(''); const [category, setCategory] = useState(''); const [query, setQuery] = useState(''); const [sort, setSort] = useState('recommended');
   const [showBudget, setShowBudget] = useState(false);
+  const [listed, setListed] = useState<string[]>([]); const [asked, setAsked] = useState('');
+  useEffect(() => { api<any[]>('/vendors/cities').then(r => setListed((r || []).map(x => x.city))).catch(() => {}); }, []);
+  const askCity = () => { api('/city-interest', 'POST', { city, category }).then(() => setAsked(city)).catch(() => {}); };
   const [prefs, setPrefsState] = useState<Prefs | null>(null); const [summary, setSummary] = useState<any>(null);
   // Onboarding answers set the starting city once, then the person is free to change it.
   useEffect(() => { getPrefs().then(p => { setPrefsState(p); if (p?.city) setCity(c => c || p.city!); }); }, []);
@@ -118,7 +121,7 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
       {(() => { const left = daysTo(weddingDate); return <View style={{ backgroundColor: C.primary, borderRadius: 28, padding: 22, overflow: 'hidden', marginBottom: 20 }}>
         <View pointerEvents="none" style={{ position: 'absolute', right: -70, top: -90, width: 240, height: 240, borderRadius: 120, borderWidth: 2, borderColor: 'rgba(232,200,119,0.25)' }} />
         <View pointerEvents="none" style={{ position: 'absolute', right: -30, top: -50, width: 160, height: 160, borderRadius: 80, borderWidth: 2, borderColor: 'rgba(232,200,119,0.18)' }} />
-        <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, letterSpacing: 2.5, color: '#E8C877', fontWeight: '700', textTransform: 'uppercase' }}>{left != null ? `${left} ${tr('days to your wedding')}` : city || tr('Mumbai, Pune, Nashik, Nagpur')}</Text>
+        <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, letterSpacing: 2.5, color: '#E8C877', fontWeight: '700', textTransform: 'uppercase' }}>{left != null ? `${left} ${tr('days to your wedding')}` : city || tr('Across India')}</Text>
         <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, color: '#FFFEFC', fontSize: 30, lineHeight: 36, marginTop: 8 }}>{tr('Find your wedding team')}</Text>
         <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.82)', fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 18 }}>{tr('Venues, caterers, photographers, mehndi artists and pandits.')}</Text>
         <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" />
@@ -133,7 +136,8 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
         </Pressable>; })}
       </ScrollView>
       <M style={{ marginTop: 20, marginBottom: 8 }}>{tr('Wedding city')}</M>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20 }}><Chip label={tr('All cities')} on={!city} onPress={() => setCity('')} />{CITIES.map(c => <Chip key={c} label={c} on={city === c} onPress={() => setCity(city === c ? '' : c)} />)}</ScrollView>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}><Chip label={tr('All cities')} on={!city} onPress={() => setCity('')} /></View>
+      <CityPicker value={city} onChange={setCity} listed={listed} />
       {comparison.length > 0 && <Card><View style={s.row}><H style={{ fontSize: 20 }}>{tr('Compare vendors')} ({comparison.length}/3)</H><Btn small kind="ghost" title={tr('Clear')} onPress={() => { setComparison([]); setShowComparison(false); }} /></View>
         <M>{tr('Select up to three vendors to compare prices, location and ratings.')}</M><Btn kind="quiet" title={showComparison ? tr('Hide comparison') : tr('Show comparison')} onPress={() => setShowComparison(!showComparison)} />
         {showComparison && <ScrollView horizontal contentContainerStyle={{ gap: 12 }}>{comparison.map(item => <View key={item.id} style={{ width: 220, padding: 16, backgroundColor: C.bg, borderRadius: 12 }}><H style={{ fontSize: 20 }}>{item.name}</H><M>{categoryLabel(item.category)} · {item.city}</M><H style={{ color: C.primary }}>{item.start_paise ? inr(item.start_paise) : tr('Price not listed')}</H><M>{item.rating ? `${item.rating}/5 · ${item.reviews} ${tr('reviews')}` : tr('No reviews yet')}</M>{item.verified ? <Tag tone="ok" label={tr('Verified')} /> : null}<Btn small title={tr('View profile')} onPress={() => openVendor(item.id)} /><Btn small kind="ghost" title={tr('Remove')} onPress={() => toggleCompare(item)} /></View>)}</ScrollView>}
@@ -156,7 +160,9 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
       {!!error && <Card><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, lineHeight: 21 }}>{error}</Text><Btn kind="quiet" title={tr('Try again')} onPress={() => setRefreshKey(k => k + 1)} /></Card>}
       {busy && !vendors && <Loading what={tr('vendors')} />}
     </>}
-    ListEmptyComponent={!busy && vendors && !error ? <Empty icon="search" title={tr('No vendors match')} text={tr('Change your city or service to see more options.')} action={filtered ? tr('Clear filters') : undefined} onAction={clearFilters} /> : null}
+    ListEmptyComponent={!busy && vendors && !error ? (city && !category && !query && !budget && !freeOn && listed.length > 0 && !listed.some(c => c.toLowerCase() === city.toLowerCase())
+      ? <Empty icon="pin" title={`${tr('No vendors in')} ${city} ${tr('yet')}`} text={asked === city ? tr('Thanks. We will use this to decide where to add vendors next. The planner works in every city.') : tr('We are adding cities. Tell us you want vendors here and we will prioritise it. The planner works in every city.')} action={asked === city ? undefined : tr('Tell us you want vendors here')} onAction={askCity} />
+      : <Empty icon="search" title={tr('No vendors match')} text={tr('Change your city or service to see more options.')} action={filtered ? tr('Clear filters') : undefined} onAction={clearFilters} />) : null}
     renderItem={({ item, index }) => { const selected = comparison.some(v => v.id === item.id); return <Rise i={Math.min(index, 3)}><VendorCard vendor={item} onPress={() => openVendor(item.id)} compare={{ on: selected, disabled: !selected && comparison.length >= 3, onToggle: () => toggleCompare(item) }} /></Rise>; }} />;
 }
 

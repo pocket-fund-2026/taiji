@@ -218,8 +218,8 @@ function PlanBody({ navigation: nav, route }: any) {
     </View>
     <Rise key={tab} style={{ flex: 1 }}>{tab === 'tools' ? <ToolsHub open={setTab} /> : tab === 'overview' ? <Overview open={setTab} nav={nav} /> : tab === 'settings' ? <WeddingSettings wedding={me.wedding} onSaved={reload} /> : tab === 'checklist' ? <TaskManager /> : tab === 'budget' ? <BudgetManager /> : tab === 'events' ? <Events /> : tab === 'shortlist' ? <ShortlistTab navigation={nav} /> : tab === 'family' ? <Family /> : tab === 'shagun' ? <Gifts /> : tab === 'stays' ? <Stays /> : tab === 'run' ? <RunSheet /> : tab === 'shopping' ? <Shopping /> : tab === 'contacts' ? <DayContacts /> : tab === 'documents' ? <Documents /> : tab === 'seating' ? <Seating /> : tab === 'invite' ? <InviteTab title={me.wedding.title} /> : tab === 'muhurat' ? <Muhurat onDateChange={reload} /> : tab === 'menu' ? <Menu /> : tab === 'transport' ? <Transport /> : tab === 'practice' ? <Practice /> : tab === 'ideas' ? <Ideas /> : tab === 'giving' ? <GiftsToGive /> : <Guests />}</Rise></View>);
 }
-const COMMUNITIES = ['North Indian Hindu', 'South Indian', 'Bengali', 'Gujarati', 'Marathi', 'Punjabi/Sikh', 'Muslim', 'Christian', 'Jain', 'Inter-faith'];
-const SETUP_CITIES = ['Mumbai', 'Pune', 'Nashik', 'Nagpur'];
+import { COMMUNITIES } from './india';
+import { CityPicker } from './citypicker';
 const BUDGETS = [500000, 1000000, 1500000, 2500000, 5000000];
 const GUEST_COUNTS = [100, 250, 500, 1000];
 // One question group per card, so the form reads as a few short steps rather than one long list.
@@ -267,7 +267,7 @@ function Setup({ onDone, name }: { onDone: () => void; name?: string }) {
       <SetupSection n={2} title={tr('When and where?')}>
         <DateField label={tr('Wedding date')} value={f.date} onChange={v => set('date', v)} min={todayISO()} placeholder={tr('Choose the main wedding day')} />
         <Text maxFontSizeMultiplier={1.3} style={s.label}>{tr('City')}</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{SETUP_CITIES.map(c => <Chip key={c} label={c} on={f.city === c} onPress={() => set('city', c)} />)}<Chip label={tr('Other')} on={f.city === 'other'} onPress={() => set('city', 'other')} /></View>
+        <CityPicker value={f.city === 'other' ? '' : f.city} onChange={c => set('city', c)} />
         {f.city === 'other' ? <Input label={tr('Your city')} value={f.otherCity} onChangeText={v => set('otherCity', v)} autoCapitalize="words" maxLength={60} /> : null}
       </SetupSection>
       <SetupSection n={3} title={tr('Budget and guests')} hint={tr('A rough number is fine. We split it across services for you.')}>

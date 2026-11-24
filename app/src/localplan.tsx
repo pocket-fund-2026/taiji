@@ -4,9 +4,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
+import { getPrefs } from './prefs';
 import { tr } from './i18n';
 import { Bar, Btn, C, Card, Check, Chip, DateField, F, Input, M, confirm, dateIN, inr, todayISO } from './ui';
 import { FloralArch } from './visuals';
+import { CityPicker } from './citypicker';
+import { COMMUNITIES } from './india';
 
 const KEY = 'localplan';
 type LPTask = { id: string; title: string; due?: string; done: boolean };
@@ -41,9 +44,7 @@ export async function importLocalPlan() {
   } catch { /* the plan stays on the phone; they can retry from the Plan tab */ }
 }
 
-const CITIES = ['Mumbai', 'Pune', 'Nashik', 'Nagpur'];
 const BUDGETS = [500000, 1000000, 1500000, 2500000, 5000000];
-const COMMUNITIES = ['North Indian Hindu', 'South Indian', 'Bengali', 'Gujarati', 'Marathi', 'Punjabi/Sikh', 'Muslim', 'Christian', 'Jain', 'Inter-faith'];
 const LABEL: Record<string, string> = { venue: 'Venue', caterer: 'Catering', photographer: 'Photography', decor: 'Decor', makeup: 'Makeup', mehndi: 'Mehndi', dj: 'DJ & music', other: 'Other' };
 const daysTo = (iso: string) => Math.ceil((new Date(iso + 'T00:00:00').getTime() - Date.now()) / 86400000);
 
@@ -65,11 +66,13 @@ function Hero({ title, text }: { title: string; text: string }) {
 }
 
 function Setup({ navigation, onCreated }: { navigation: any; onCreated: (p: LPPlan) => void }) {
-  const [f, setF] = useState({ date: '', city: 'Pune', budget: '1500000', guests: '250', community: 'North Indian Hindu' });
-  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [f, setF] = useState({ date: '', city: '', budget: '1500000', guests: '250', community: 'North Indian Hindu' });
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [listed, setListed] = useState<string[]>([]);
+  useEffect(() => { api('/vendors/cities').then((r: any) => setListed((r || []).map((x: any) => x.city))).catch(() => {}); getPrefs().then(p => { if (p?.city) setF(x => x.city ? x : { ...x, city: p.city! }); }); }, []);
   const set = (k: string, v: string) => { setF(x => ({ ...x, [k]: v })); setError(''); };
   const go = async () => {
     if (!f.date) return setError(tr('Choose your wedding date.'));
+    if (!f.city.trim()) return setError(tr('Choose your wedding city.'));
     if (!(+f.budget > 0)) return setError(tr('Enter a rough total budget.'));
     setBusy(true);
     try {
@@ -83,7 +86,7 @@ function Setup({ navigation, onCreated }: { navigation: any; onCreated: (p: LPPl
     <View style={{ padding: 16, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
       <DateField label={tr('Wedding date')} value={f.date} onChange={v => set('date', v)} min={todayISO()} placeholder={tr('Choose the main wedding day')} />
       <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 13, fontWeight: '500', color: C.mute, marginBottom: 8 }}>{tr('City')}</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{CITIES.map(c => <Chip key={c} label={c} on={f.city === c} onPress={() => set('city', c)} />)}</View>
+      <CityPicker value={f.city} onChange={c => set('city', c)} listed={listed} />
       <Input label={tr('Total budget')} prefix="₹" value={f.budget ? (+f.budget).toLocaleString('en-IN') : ''} onChangeText={v => set('budget', v.replace(/\D/g, '').slice(0, 11))} keyboardType="number-pad" placeholder="15,00,000" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>{BUDGETS.map(b => <Chip key={b} label={inr(b * 100)} on={+f.budget === b} onPress={() => set('budget', String(b))} />)}</View>
       <Input label={tr('About how many guests?')} value={f.guests} onChangeText={v => set('guests', v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" placeholder="250" />

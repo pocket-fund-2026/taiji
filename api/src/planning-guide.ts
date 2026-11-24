@@ -1,8 +1,8 @@
 // Original task wording, informed by the time-based approach in Brides and
 // multi-event logistics in Marigold Events. Suggestions remain optional.
 type GuideItem = readonly [key: string, title: string, daysBefore: number, phase: string, communities?: readonly string[]];
-const HINDU = ['North Indian Hindu', 'South Indian', 'Bengali', 'Gujarati', 'Marathi', 'Jain'];
-const SANGEET = ['North Indian Hindu', 'Gujarati', 'Punjabi/Sikh'];
+const HINDU = ['North Indian Hindu', 'South Indian', 'Bengali', 'Gujarati', 'Marathi', 'Jain', 'Tamil', 'Telugu', 'Malayali', 'Sindhi', 'Assamese'];
+const SANGEET = ['North Indian Hindu', 'Gujarati', 'Punjabi/Sikh', 'Sindhi'];
 export const GUIDE: readonly GuideItem[] = [
   ['priorities', 'Agree on your priorities together', 330, 'Foundations'],
   ['events', 'Choose the celebrations you want with both families', 330, 'Foundations'],
@@ -21,7 +21,7 @@ export const GUIDE: readonly GuideItem[] = [
   ['invite_design', 'Plan invitation design and wording', 180, 'Guests'],
   ['officiant', 'Confirm your officiant and ceremony requirements', 180, 'Ceremony'],
   ['decor', 'Confirm flowers, decor and rentals', 150, 'Design'],
-  ['mehndi', 'Confirm mehndi artists and timing if planned', 150, 'Style', ['North Indian Hindu', 'South Indian', 'Punjabi/Sikh', 'Muslim', 'Jain']],
+  ['mehndi', 'Confirm mehndi artists and timing if planned', 150, 'Style', ['North Indian Hindu', 'South Indian', 'Punjabi/Sikh', 'Muslim', 'Jain', 'Telugu', 'Sindhi']],
   ['transport', 'Plan transport for guests and family', 120, 'Logistics'],
   ['family_roles', 'Agree who in the family coordinates each event', 90, 'Logistics'],
   ['menu', 'Confirm your menu and dietary options', 90, 'Vendors'],

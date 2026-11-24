@@ -7,6 +7,8 @@ import { tr } from './i18n';
 import { Icon, IconName, Logo, CAT_ICON } from './icons';
 import { C, F, useReducedMotion } from './ui';
 import { Prefs, markOnboarded, setPrefs } from './prefs';
+import { CityPicker } from './citypicker';
+import { api } from './api';
 
 // Taiji palette only: burgundy, gold and ivory from the app theme (C). Nothing here is Duolingo green or blue.
 export const DUO = {
@@ -101,6 +103,8 @@ export default function Onboarding({ onDone }: { onDone: (to: 'home' | 'signin',
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [role, setRole] = useState<Prefs['role']>(); const [city, setCity] = useState(''); const [services, setServices] = useState<string[]>([]); const [timeline, setTimeline] = useState('');
+  const [listed, setListed] = useState<string[]>([]);
+  useEffect(() => { api('/vendors/cities').then((r: any) => setListed((r || []).map((x: any) => x.city))).catch(() => {}); }, []);
   const vendor = role === 'vendor';
   const total = vendor ? 3 : 6;
   const pos = vendor && step === 5 ? 2 : step;
@@ -127,9 +131,7 @@ export default function Onboarding({ onDone }: { onDone: (to: 'home' | 'signin',
         <Tile icon="search" on={role === 'browse'} onPress={() => setRole('browse')} label={tr('Just looking around')} detail={tr('Browse vendors, no account needed')} />
         <Tile icon="store" on={role === 'vendor'} onPress={() => setRole('vendor')} label={tr('I’m a wedding vendor')} detail={tr('List your services and get enquiries')} />
       </View></>}
-      {step === 2 && <>{heading(tr('Where is the wedding?'), tr('We will show vendors who work in your city.'))}<View style={{ gap: 12 }}>
-        {CITIES.map(([c, d]) => <Tile key={c} icon="pin" on={city === c} onPress={() => setCity(c)} label={c} detail={tr(d)} />)}
-      </View></>}
+      {step === 2 && <>{heading(tr('Where is the wedding?'), tr('Pick any city in India. We show vendors who work there.'))}<CityPicker value={city} onChange={setCity} listed={listed} /></>}
       {step === 3 && <>{heading(tr('What do you need first?'), tr('Pick as many as you like. You can change this any time.'))}<View style={{ gap: 12 }}>
         {SERVICES.map(([k, l]) => <Tile key={k} multi icon={CAT_ICON[k] || 'store'} on={services.includes(k)} onPress={() => toggle(k)} label={tr(l)} />)}
       </View></>}
