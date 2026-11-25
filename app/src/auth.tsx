@@ -16,7 +16,7 @@ const validPhone = (p: string) => /^[6-9]\d{9}$/.test(p);
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e.trim());
 
 // After sign-in the app opens where the person can do something useful: new couples set up the wedding, new vendors their storefront.
-export type SignedIn = { isNew: boolean; role: 'couple' | 'vendor' };
+export type SignedIn = { isNew: boolean; role: 'couple' | 'vendor'; name?: string };
 
 const ROLE_OPTIONS: ['couple' | 'vendor', IconName, string, string][] = [
   ['couple', 'family', 'I’m planning a wedding', 'For the couple and family: vendors, checklist, budget and guests'],
@@ -53,7 +53,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
       const id = em ? { email: who } : { phone };
       const r = await api(em ? '/auth/email/signin' : '/auth/verify', 'POST', step === 2 ? { ...id, otp: code, role, name: name.trim(), accept_terms: true } : { ...id, otp: code });
       if (r.needsProfile) { setStep(2); return; }
-      await setToken(r.token); onDone({ isNew: step === 2, role: r.user?.role === 'vendor' ? 'vendor' : 'couple' });
+      await setToken(r.token); onDone({ isNew: step === 2, role: r.user?.role === 'vendor' ? 'vendor' : 'couple', name: step === 2 ? name.trim() : r.user?.name });
     } catch (e: any) {
       const m = e?.message || String(e);
       // A wrong code can only be fixed on the code step, so go back there with it cleared.

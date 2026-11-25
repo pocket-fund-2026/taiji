@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { gsap } from 'gsap';
 
+const MODE = (window.TAIJI && window.TAIJI.mode) || 'open';
 const post = m => { try { window.ReactNativeWebView.postMessage(m); } catch (e) { /* not in a webview */ } };
 const GOLD = 0xD9AE5B;
 let renderer;
@@ -77,7 +78,7 @@ function frame(time, dtms) {
   const dt = Math.min(dtms, 50) / 1000;
   camera.position.set(Math.sin(time * 0.35) * 0.18, 0.1, baseDist * S.zoom); camera.lookAt(0, 0.1, 0);
   E.rotation.y = Math.sin(time * 0.8) * 0.2; ringA.rotation.z += dt * 0.35; ringB.rotation.z -= dt * 0.3;
-  glow.material.opacity = S.glow * (0.75 + 0.25 * Math.sin(time * 3)); glint.intensity = S.glow * 3.2; glint.position.set(Math.sin(time * 1.6) * 2.2, 0.6, 2.2);
+  glow.material.opacity = S.glow * (0.75 + 0.25 * Math.sin(time * 3)); glint.intensity = S.glow * 1.8; glint.position.set(Math.sin(time * 1.6) * 2.2, 0.6, 2.2);
   wave.scale.setScalar(0.3 + S.wave * 3.2); wave.material.opacity = (1 - S.wave) * 0.7 * (S.wave > 0 ? 1 : 0);
   const b = S.burst; sparks.material.opacity = b > 0 && b < 1 ? (1 - b * b) : 0; sparks.visible = sparks.material.opacity > 0.01;
   if (sparks.visible) { const a = sGeo.attributes.position.array; for (let i = 0; i < NS; i++) { const e = 1 - Math.pow(1 - b, 3); a[i * 3] = sDir[i][0] * e * 1.8; a[i * 3 + 1] = sDir[i][1] * e * 1.8 - b * b * 0.5; a[i * 3 + 2] = sDir[i][2] * e * 1.8; } sGeo.attributes.position.needsUpdate = true; }
@@ -92,6 +93,14 @@ gsap.ticker.add(frame);
 
 // ---- The timeline ----
 const tl = gsap.timeline({ paused: true, onComplete: finish });
+// Welcome mode (after sign-up): the same scene, shorter, with a personal greeting. Text is set with textContent, never as HTML.
+if (MODE === 'welcome') {
+  const w = document.getElementById('word'); w.textContent = '';
+  for (const ch of 'Welcome') { const s = document.createElement('span'); s.textContent = ch; w.appendChild(s); }
+  const who = String((window.TAIJI && window.TAIJI.name) || '').trim().split(/\s+/)[0].slice(0, 18);
+  const tg = document.getElementById('tag'); tg.textContent = who ? who + ', let\u2019s plan your wedding' : 'Let\u2019s plan your wedding';
+  w.style.fontSize = 'clamp(38px,12vw,60px)';
+}
 const spans = gsap.utils.toArray('#word span');
 gsap.set(spans, { y: 34, opacity: 0, filter: 'blur(10px)' }); gsap.set('#line', { scaleX: 0 }); gsap.set('#tag', { opacity: 0, y: 10 });
 tl.to(S, { petals: 1, duration: 1.1, ease: 'power2.out' }, 0)
@@ -110,6 +119,7 @@ tl.to(S, { petals: 1, duration: 1.1, ease: 'power2.out' }, 0)
   .to('#line', { scaleX: 1, duration: 0.6, ease: 'power3.out' }, 2.55).to('#tag', { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 2.7)
   .to(S, { glow: 0.55, duration: 0.8 }, 3.0)
   .to('#root', { opacity: 0, scale: 1.05, duration: 0.45, ease: 'power2.in' }, 3.95);
+if (MODE === 'welcome') tl.timeScale(1.3);
 let ended = false;
 function finish() { if (ended) return; ended = true; gsap.ticker.remove(frame); post('done'); }
 document.addEventListener('click', () => { if (!ended) tl.timeScale(5); });

@@ -16,7 +16,7 @@ import { Gifts, RunSheet, Stays } from './hospitality';
 import { DayContacts, Documents, Seating, Shopping } from './organiser';
 import { ChooseVendor, GiftsToGive, Guests, Ideas, Menu, Muhurat, Practice, Transport } from './traditions';
 import { useT } from './i18n';
-import { Hint, MoreToggle, SP } from './ux';
+import { Hint, MoreToggle, Moment, SP } from './ux';
 import { getPrefs } from './prefs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Press feedback for bare Pressables: a small spring scale to PRESS_SCALE (transform, native driver); skipped under reduced motion.
@@ -208,11 +208,11 @@ export function Plan(props: any) {
   return <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: C.bg }}><PlanBody {...props} /></View>;
 }
 function PlanBody({ navigation: nav, route }: any) {
-  const [me, reload] = useLoad<any>('/me', null); const [tab, setTab] = useState('overview'); const prevTab = useRef({ tab: 'overview', dir: 1 as 1 | -1 }); const narrow = useWindowDimensions().width < 360;
+  const [me, reload] = useLoad<any>('/me', null); const [tab, setTab] = useState('overview'); const [created, setCreated] = useState(false); const clearCreated = useCallback(() => setCreated(false), []); const prevTab = useRef({ tab: 'overview', dir: 1 as 1 | -1 }); const narrow = useWindowDimensions().width < 360;
   // Other screens (Profile) can open a specific section of the plan.
   useEffect(() => { if (route?.params?.tab) setTab(route.params.tab); }, [route?.params?.tab, route?.params?.at]); 
   if (!me) return <Loading what={tr('your wedding')} />;
-  if (!me.wedding) return <Setup onDone={reload} name={me.user?.name} />;
+  if (!me.wedding) return <Setup onDone={() => { setCreated(true); reload(); }} name={me.user?.name} />;
   const tool = PLAN_TOOLS.find(t => t[0] === tab);
   // DIRECTIONAL SLIDES: later in [overview, checklist, budget, guests, tools/any tool] enters from the right, earlier from the left.
   const order = (k: string) => { const n = ['overview', 'checklist', 'budget', 'guests'].indexOf(k); return n < 0 ? 4 : n; };
@@ -238,7 +238,7 @@ function PlanBody({ navigation: nav, route }: any) {
         <Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontSize: 13, fontWeight: '500' }}>{tr('All tools')}</Text><Text maxFontSizeMultiplier={1.3} style={{ color: C.mute, fontSize: 13 }}> · {tr(tool[1])}</Text>
       </Pressable> : null}
     </View>
-    <Slide key={tab} dir={dir} style={{ flex: 1 }}>{tab === 'tools' ? <ToolsHub open={setTab} /> : tab === 'overview' ? <Overview open={setTab} nav={nav} /> : tab === 'settings' ? <WeddingSettings wedding={me.wedding} onSaved={reload} /> : tab === 'checklist' ? <TaskManager /> : tab === 'budget' ? <BudgetManager /> : tab === 'events' ? <Events /> : tab === 'shortlist' ? <ShortlistTab navigation={nav} /> : tab === 'family' ? <Family /> : tab === 'shagun' ? <Gifts /> : tab === 'stays' ? <Stays /> : tab === 'run' ? <RunSheet /> : tab === 'shopping' ? <Shopping /> : tab === 'contacts' ? <DayContacts /> : tab === 'documents' ? <Documents /> : tab === 'seating' ? <Seating /> : tab === 'invite' ? <InviteTab title={me.wedding.title} /> : tab === 'muhurat' ? <Muhurat onDateChange={reload} /> : tab === 'menu' ? <Menu /> : tab === 'transport' ? <Transport /> : tab === 'practice' ? <Practice /> : tab === 'ideas' ? <Ideas /> : tab === 'giving' ? <GiftsToGive /> : <Guests />}</Slide></View>);
+    <Slide key={tab} dir={dir} style={{ flex: 1 }}>{tab === 'tools' ? <ToolsHub open={setTab} /> : tab === 'overview' ? <Overview open={setTab} nav={nav} /> : tab === 'settings' ? <WeddingSettings wedding={me.wedding} onSaved={reload} /> : tab === 'checklist' ? <TaskManager /> : tab === 'budget' ? <BudgetManager /> : tab === 'events' ? <Events /> : tab === 'shortlist' ? <ShortlistTab navigation={nav} /> : tab === 'family' ? <Family /> : tab === 'shagun' ? <Gifts /> : tab === 'stays' ? <Stays /> : tab === 'run' ? <RunSheet /> : tab === 'shopping' ? <Shopping /> : tab === 'contacts' ? <DayContacts /> : tab === 'documents' ? <Documents /> : tab === 'seating' ? <Seating /> : tab === 'invite' ? <InviteTab title={me.wedding.title} /> : tab === 'muhurat' ? <Muhurat onDateChange={reload} /> : tab === 'menu' ? <Menu /> : tab === 'transport' ? <Transport /> : tab === 'practice' ? <Practice /> : tab === 'ideas' ? <Ideas /> : tab === 'giving' ? <GiftsToGive /> : <Guests />}</Slide>{created ? <Moment title={tr('Your wedding plan is ready')} detail={tr('Start with the highlighted step.')} onDone={clearCreated} /> : null}</View>);
 }
 import { COMMUNITIES } from './india';
 import { CityPicker } from './citypicker';

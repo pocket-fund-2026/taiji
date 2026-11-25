@@ -87,10 +87,11 @@ const GuestTabs = function T() {
 };
 // The opening animation plays once per launch over the app while it boots (same burgundy as the splash and boot screen).
 export default function App() {
-  const [opening, setOpening] = useState(true);
-  return <View style={{ flex: 1, backgroundColor: C.primary }}><AppInner />{opening ? <Opening onDone={() => setOpening(false)} /> : null}</View>;
+  const [opening, setOpening] = useState(true); const [welcome, setWelcome] = useState<string | null>(null);
+  return <View style={{ flex: 1, backgroundColor: C.primary }}><AppInner onWelcome={setWelcome} />{opening ? <Opening onDone={() => setOpening(false)} /> : null}
+    {welcome !== null && !opening ? <Opening mode="welcome" name={welcome} onDone={() => setWelcome(null)} /> : null}</View>;
 }
-function AppInner() {
+function AppInner({ onWelcome }: { onWelcome: (name: string) => void }) {
   const [fonts] = useFonts({ Fraunces_600SemiBold, Fraunces_700Bold });
   // Language changes remount navigation so every title re-renders; this keeps the user on the screen they were on.
   const navState = React.useRef<any>(undefined);
@@ -103,7 +104,7 @@ function AppInner() {
   useEffect(() => { boot(); }, []);
   const logout = async () => { await setToken(''); navState.current = undefined; setState('out'); };
   if (state === 'boot' || !fonts || seen === null) return <BootScreen fontsReady={!!fonts} />;
-  const signedIn = async (result: SignedIn) => { landing.current = result.isNew ? (result.role === 'vendor' ? 'Store' : 'Plan') : undefined; navState.current = undefined; await importLocalPlan(); boot(); };
+  const signedIn = async (result: SignedIn) => { if (result.isNew) onWelcome(result.name || ''); landing.current = result.isNew ? (result.role === 'vendor' ? 'Store' : 'Plan') : undefined; navState.current = undefined; await importLocalPlan(); boot(); };
   if (state === 'out') return (<LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><GuestCtx.Provider value={true}><NavigationContainer key={'guest-' + lang}>
     <Stack.Navigator initialRouteName={seen ? 'Home' : 'Onboarding'} screenOptions={{ ...hdr, animation: 'slide_from_right' }}>
       <Stack.Screen name="Onboarding" options={{ headerShown: false, gestureEnabled: false }}>{(p: any) => <Onboarding onDone={(to) => { p.navigation.reset({ index: 0, routes: [{ name: 'Home' }] }); if (to === 'signin') setTimeout(() => p.navigation.navigate('SignIn'), 0); }} />}</Stack.Screen>

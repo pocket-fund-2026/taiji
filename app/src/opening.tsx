@@ -7,7 +7,7 @@ import { WebView } from 'react-native-webview';
 import { OPENING_HTML } from './openingHtml';
 import { C, useReducedMotion } from './ui';
 
-export function Opening({ onDone }: { onDone: () => void }) {
+export function Opening({ onDone, mode = 'open', name }: { onDone: () => void; mode?: 'open' | 'welcome'; name?: string }) {
   const { reduced, ready } = useReducedMotion();
   const fade = useRef(new Animated.Value(1)).current; const done = useRef(false);
   const [mounted, setMounted] = useState(true);
@@ -20,7 +20,7 @@ export function Opening({ onDone }: { onDone: () => void }) {
   useEffect(() => { const t = setTimeout(end, 8000); return () => clearTimeout(t); }, [end]);
   if (!mounted || Platform.OS === 'web' || (ready && reduced)) return null;
   return <Animated.View pointerEvents="auto" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: C.primary, opacity: fade, zIndex: 999 }}>
-    <WebView source={{ html: OPENING_HTML }} originWhitelist={['*']} javaScriptEnabled scrollEnabled={false} bounces={false} overScrollMode="never"
+    <WebView source={{ html: OPENING_HTML }} injectedJavaScriptBeforeContentLoaded={`window.TAIJI=${JSON.stringify({ mode, name: name || '' }).replace(/</g, '\\u003c')};true;`} originWhitelist={['*']} javaScriptEnabled scrollEnabled={false} bounces={false} overScrollMode="never"
       style={{ flex: 1, backgroundColor: 'transparent' }} containerStyle={{ backgroundColor: C.primary }} androidLayerType="hardware"
       onMessage={e => { const m = e.nativeEvent.data; if (m === 'done' || m === 'fail') end(); }} onError={end} onHttpError={end} accessible={false} importantForAccessibility="no-hide-descendants" />
   </Animated.View>;
