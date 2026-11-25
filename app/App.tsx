@@ -24,6 +24,7 @@ import { syncReminders } from './src/reminders';
 import Onboarding from './src/onboarding';
 import { hasOnboarded } from './src/prefs';
 import { ConsentGate } from './src/safety';
+import { Opening } from './src/opening';
 // Shown while the session and fonts load. Same burgundy as the native splash so the hand-off has no flash,
 // and it says what is happening when the server is slow instead of spinning silently.
 function BootScreen({ fontsReady }: { fontsReady: boolean }) {
@@ -84,7 +85,12 @@ const GuestTabs = function T() {
     <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }} component={GuestVendors} />
     <Tab.Screen name="Profile" options={{ title: t('profile'), tabBarIcon: ti('person') }} component={GuestProfile} /></Tab.Navigator>);
 };
+// The opening animation plays once per launch over the app while it boots (same burgundy as the splash and boot screen).
 export default function App() {
+  const [opening, setOpening] = useState(true);
+  return <View style={{ flex: 1, backgroundColor: C.primary }}><AppInner />{opening ? <Opening onDone={() => setOpening(false)} /> : null}</View>;
+}
+function AppInner() {
   const [fonts] = useFonts({ Fraunces_600SemiBold, Fraunces_700Bold });
   // Language changes remount navigation so every title re-renders; this keeps the user on the screen they were on.
   const navState = React.useRef<any>(undefined);
