@@ -2,7 +2,7 @@ import React from 'react';
 import { Image } from 'react-native';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
 
-// Bespoke set drawn for Shaadi OS on a 24px grid, 1.6 stroke, round joins.
+// Bespoke set drawn for Taiji on a 24px grid, 1.6 stroke, round joins.
 // Kept in-house so icons depict wedding work (diya, mandap, henna) instead of a stock library's generic glyphs.
 type El = ['p', string, Opt?] | ['c', number, number, number, Opt?] | ['r', number, number, number, number, number, Opt?];
 type Opt = { fill?: boolean; rotate?: number };
@@ -76,7 +76,7 @@ export function Icon({ name, size = 22, color = '#241019', strokeWidth = 1.5 }: 
 
 // Brand mark: a mandap arch over the sacred fire. Same geometry as brand/mark.svg and the app icon.
 export function Logo({ size = 56, tile = '#7A1F3D', gold = '#E8C877', radius }: { size?: number; tile?: string; gold?: string; radius?: number }) {
-  return <Image source={require('../assets/brand-icon-v3.png')} accessibilityLabel="Shaadi OS" style={{ width: size, height: size, borderRadius: radius ?? size * 0.22 }} />;
+  return <Image source={require('../assets/brand-icon-v3.png')} accessibilityLabel="Taiji" style={{ width: size, height: size, borderRadius: radius ?? size * 0.22 }} />;
 }
 
 // Retained vector version of the first mark for reference and alternate contexts.

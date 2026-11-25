@@ -85,7 +85,7 @@ export function DayContacts() {
   const row = (c: any, key: string, removable?: boolean) => <Card key={key} style={{ paddingVertical: 16 }}><View style={s.row}>
     <View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500' }}>{c.name}</Text>
       <M>{[c.source ? categoryLabel(c.role) : c.role, c.arrival && `${tr('arrives')} ${c.arrival}`].filter(Boolean).join(' · ')}</M>
-      {c.source ? <M style={{ fontSize: 12 }}>{tr(c.source === 'booking' ? 'Booked on Shaadi OS' : 'Paid outside the app')}</M> : null}</View>
+      {c.source ? <M style={{ fontSize: 12 }}>{tr(c.source === 'booking' ? 'Booked on Taiji' : 'Paid outside the app')}</M> : null}</View>
     {c.phone ? <View style={{ flexDirection: 'row', gap: 8 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${tr('Call')} ${c.name}`} onPress={() => Linking.openURL('tel:+91' + c.phone).catch(err)} style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: C.tint, alignItems: 'center', justifyContent: 'center' }}><Icon name="phone" size={20} color={C.primary} /></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`WhatsApp ${c.name}`} onPress={() => Linking.openURL('https://wa.me/91' + c.phone).catch(err)} style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: C.tint, alignItems: 'center', justifyContent: 'center' }}><Icon name="send" size={20} color={C.primary} /></Pressable>

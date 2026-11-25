@@ -105,7 +105,7 @@ export function Assistant({ navigation }: any) {
             style={({ pressed }) => ({ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14, opacity: pressed ? 0.8 : 1 })}>
             <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 16, color: C.ink }}>{v.name}</Text>
             <M style={{ marginTop: 2 }}>{categoryLabel(v.category)} · {v.locality ? v.locality + ', ' : ''}{v.city}</M>
-            <M style={{ marginTop: 2, color: v.start_paise ? C.ink : C.mute }}>{v.start_paise ? `${tr('From')} ${inr(v.start_paise)}` : tr('Ask for a quote')}{v.unclaimed ? ` · ${tr('Not on Shaadi OS yet')}` : ''}</M>
+            <M style={{ marginTop: 2, color: v.start_paise ? C.ink : C.mute }}>{v.start_paise ? `${tr('From')} ${inr(v.start_paise)}` : tr('Ask for a quote')}{v.unclaimed ? ` · ${tr('Not on Taiji yet')}` : ''}</M>
           </Pressable>)}</View> : null}
         </View>)}
         {busy ? <View style={{ marginTop: 12, alignItems: 'flex-start' }}><View style={{ borderRadius: 16, padding: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>

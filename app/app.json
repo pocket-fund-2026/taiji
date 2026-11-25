@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Shaadi OS",
+    "name": "Taiji",
     "slug": "shaadi-os",
     "version": "1.2.0",
     "orientation": "portrait",
@@ -24,7 +24,7 @@
           "whatsapp"
         ]
       },
-      "buildNumber": "16"
+      "buildNumber": "17"
     },
     "android": {
       "package": "com.shaadios.app",
@@ -32,7 +32,7 @@
         "backgroundColor": "#74263F",
         "foregroundImage": "./assets/android-icon-foreground-v3.png"
       },
-      "versionCode": 8,
+      "versionCode": 9,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WRITE_EXTERNAL_STORAGE",
@@ -54,7 +54,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Choose portfolio photos to show couples on your Shaadi OS storefront.",
+          "photosPermission": "Choose portfolio photos to show couples on your Taiji storefront.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -63,8 +63,8 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "name": "Shaadi OS",
-      "shortName": "Shaadi OS",
+      "name": "Taiji",
+      "shortName": "Taiji",
       "backgroundColor": "#FBF6F1",
       "themeColor": "#7A1F3D",
       "favicon": "./assets/favicon-v3.png"

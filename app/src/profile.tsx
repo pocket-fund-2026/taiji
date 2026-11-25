@@ -150,7 +150,7 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
     <Admin />
 
     <Section title={tr('About')}>
-      <Row first icon="seal" label="Shaadi OS" value={`${tr('Version')} ${VERSION}`} />
+      <Row first icon="seal" label="Taiji" value={`${tr('Version')} ${VERSION}`} />
     </Section>
 
     <View style={{ marginTop: 24 }}><Btn kind="ghost" icon="logout" title={tr('Log out')} onPress={onLogout} /></View>

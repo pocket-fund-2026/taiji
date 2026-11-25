@@ -80,7 +80,7 @@ function Welcome({ top }: { top: number }) {
       <View pointerEvents="none" style={{ position: 'absolute', top: -120, width: 420, height: 420, borderRadius: 210, borderWidth: 2, borderColor: 'rgba(232,200,119,0.22)' }} />
       <View pointerEvents="none" style={{ position: 'absolute', top: -70, width: 320, height: 320, borderRadius: 160, borderWidth: 2, borderColor: 'rgba(232,200,119,0.16)' }} />
       <Mascot size={96} />
-      <Text maxFontSizeMultiplier={1.2} style={{ marginTop: 12, fontSize: 13, letterSpacing: 3, color: '#E8C877', textTransform: 'uppercase', fontWeight: '700' }}>Shaadi OS</Text>
+      <Text maxFontSizeMultiplier={1.2} style={{ marginTop: 12, fontSize: 13, letterSpacing: 3, color: '#E8C877', textTransform: 'uppercase', fontWeight: '700' }}>Taiji</Text>
       <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontSize: 34, lineHeight: 40, ...SERIF, color: '#FFFEFC', textAlign: 'center', marginTop: 18 }}>{tr('Plan your shaadi, one step at a time')}</Text>
       <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 16, lineHeight: 24, color: 'rgba(255,254,252,0.82)', textAlign: 'center', marginTop: 10 }}>{tr('Real vendors, a checklist for your date and a budget your whole family can see.')}</Text>
     </View>

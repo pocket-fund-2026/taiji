@@ -45,7 +45,7 @@ function ServiceGroups({ category, setCategory, counts, picks }: { category: str
 }
 // Couples budget in lakhs, so the common ceilings are one tap away.
 const BUDGET_PRESETS = [50000, 100000, 200000, 500000];
-// Recommended order: vendors on Shaadi OS, then real businesses that have not joined, then demo samples.
+// Recommended order: vendors on Taiji, then real businesses that have not joined, then demo samples.
 const listingRank = (v: any) => v.sample ? 2 : v.unclaimed ? 1 : 0;
 // Unknown keys (e.g. budget lines like 'attire') are shown capitalised rather than as raw lowercase ids.
 export const categoryLabel = (category: string) => tr(CATEGORIES.find(([key]) => key === category)?.[1] || (category ? category[0].toUpperCase() + category.slice(1) : category));
@@ -72,7 +72,7 @@ export function VendorCard({ vendor, onPress, compare }: { vendor: any; onPress:
     <View style={{ padding: 20 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, fontFamily: F.display, fontSize: 20, lineHeight: 28, color: C.ink }}>{vendor.name}</Text>
-        {vendor.sample || vendor.unclaimed ? <Tag label={tr(vendor.sample ? 'Sample listing' : 'Not on Shaadi OS yet')} /> : vendor.verified ? <Tag tone="ok" icon="seal" label={tr('Verified')} /> : null}
+        {vendor.sample || vendor.unclaimed ? <Tag label={tr(vendor.sample ? 'Sample listing' : 'Not on Taiji yet')} /> : vendor.verified ? <Tag tone="ok" icon="seal" label={tr('Verified')} /> : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}><Icon name="pin" size={15} color={C.mute} /><M style={{ flex: 1 }}>{place(vendor)}</M></View>
       <View style={[s.row, { borderTopWidth: 1, borderTopColor: C.line, marginTop: 16, paddingTop: 16, gap: 8 }]}>
@@ -123,7 +123,7 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
   return <FlatList style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingBottom: 36, width: '100%', maxWidth: 760, alignSelf: 'center' }} data={results} keyExtractor={v => String(v.id)} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
     refreshControl={<RefreshControl refreshing={busy} onRefresh={() => setRefreshKey(k => k + 1)} tintColor={C.primary} />}
     ListHeaderComponent={<>
-      {onSignIn && <View style={[s.row, { marginBottom: 20 }]}><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}><Logo size={28} /><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, color: C.primary, fontSize: 20 }}>Shaadi OS</Text></View><Btn small kind="quiet" title={tr('Sign in')} onPress={onSignIn} /></View>}
+      {onSignIn && <View style={[s.row, { marginBottom: 20 }]}><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}><Logo size={28} /><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, color: C.primary, fontSize: 20 }}>Taiji</Text></View><Btn small kind="quiet" title={tr('Sign in')} onPress={onSignIn} /></View>}
       {(() => { const left = daysTo(weddingDate); return <View style={{ backgroundColor: C.primary, borderRadius: 28, padding: 22, overflow: 'hidden', marginBottom: 20 }}>
         <View pointerEvents="none" style={{ position: 'absolute', right: -70, top: -90, width: 240, height: 240, borderRadius: 120, borderWidth: 2, borderColor: 'rgba(232,200,119,0.25)' }} />
         <View pointerEvents="none" style={{ position: 'absolute', right: -30, top: -50, width: 160, height: 160, borderRadius: 80, borderWidth: 2, borderColor: 'rgba(232,200,119,0.18)' }} />
@@ -131,7 +131,7 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
         <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, color: '#FFFEFC', fontSize: 30, lineHeight: 36, marginTop: 8 }}>{tr('Find your wedding team')}</Text>
         <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.82)', fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 18 }}>{tr('Venues, caterers, photographers, mehndi artists and pandits.')}</Text>
         <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" onSubmitEditing={() => recentSearch.add(query)} />
-        <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.8)', fontSize: 13, marginTop: -4 }}>{summary ? `${summary.total} ${city ? `${tr('vendors in')} ${city}` : tr('vendors listed')}${summary.on_platform > 0 ? ` · ${summary.on_platform} ${tr('on Shaadi OS')}` : ''}` : ' '}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.8)', fontSize: 13, marginTop: -4 }}>{summary ? `${summary.total} ${city ? `${tr('vendors in')} ${city}` : tr('vendors listed')}${summary.on_platform > 0 ? ` · ${summary.on_platform} ${tr('on Taiji')}` : ''}` : ' '}</Text>
       </View>; })()}
       {!query && recentSearch.items.length > 0 && <View style={{ marginBottom: SP.block }}><View style={s.row}><M>{tr('Recent searches')}</M><Btn small kind="ghost" title={tr('Clear history')} onPress={() => { recentSearch.clear(); recentVendors.clear(); }} /></View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{recentSearch.items.map(q => <Chip key={q} icon="search" label={q} onPress={() => setQuery(q)} />)}</View></View>}

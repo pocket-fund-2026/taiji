@@ -58,7 +58,7 @@ export function ShortlistTab({ navigation }: any) {
   const [l, load, busy] = useLoad<any[]>('/shortlist', []);
   const vote = async (id: number, v: number) => { await api(`/shortlist/${id}/vote`, 'POST', { vote: v }).catch(err); load(); };
   const choose = async (v: any) => { await api('/shortlist/choose', 'POST', { vendor_id: v.vendor_id, chosen: !v.chosen }).catch(err); load(); };
-  const share = (v: any) => Share.share({ message: `What do you think of ${v.name} (${categoryLabel(v.category)}, ${v.city})${v.start_paise ? ` from ${inr(v.start_paise)}` : ''}? Vote in Shaadi OS.` }).catch(() => {});
+  const share = (v: any) => Share.share({ message: `What do you think of ${v.name} (${categoryLabel(v.category)}, ${v.city})${v.start_paise ? ` from ${inr(v.start_paise)}` : ''}? Vote in Taiji.` }).catch(() => {});
   return (<ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
     {!l.length && !busy && <Empty icon="heart" title={tr('Nothing shortlisted')} text={tr('Tap Shortlist on any vendor’s page. Everyone in your family workspace can then vote here.')} />}
     {l.map((v, i) => <Rise key={v.id} i={i}><Card>

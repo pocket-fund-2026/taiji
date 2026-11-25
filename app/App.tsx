@@ -37,13 +37,13 @@ function BootScreen({ fontsReady }: { fontsReady: boolean }) {
   }, [reduced, fade]);
   // The mark sits exactly where the native splash draws it (120 pt, centred), so the hand-off is invisible;
   // only the wordmark and status underneath fade in.
-  return <View accessibilityRole="progressbar" accessibilityLabel={tr('Opening Shaadi OS')} style={{ flex: 1, backgroundColor: C.primary }}>
+  return <View accessibilityRole="progressbar" accessibilityLabel={tr('Opening Taiji')} style={{ flex: 1, backgroundColor: C.primary }}>
     <StatusBar style="light" />
     <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
       <Logo size={120} radius={0} />
     </View>
     <Animated.View style={{ position: 'absolute', top: '50%', left: 32, right: 32, marginTop: 84, alignItems: 'center', opacity: fade }}>
-      <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 28, color: C.goldSoft, fontFamily: fontsReady ? F.display : Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, serif' }) }}>Shaadi OS</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 28, color: C.goldSoft, fontFamily: fontsReady ? F.display : Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, serif' }) }}>Taiji</Text>
       <ActivityIndicator style={{ marginTop: 24 }} color={C.goldSoft} />
       <Text maxFontSizeMultiplier={1.3} accessibilityLiveRegion="polite" style={{ marginTop: 16, minHeight: 60, maxWidth: 280, textAlign: 'center', fontSize: 13, lineHeight: 20, color: '#F4DDE5' }}>
         {slow === 2 ? tr('Still connecting. Check your internet connection; the app will open as soon as it reaches the server.') : slow === 1 ? tr('Connecting to the server…') : ''}
@@ -108,7 +108,7 @@ export default function App() {
   if (me.consent_current === false) return <LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><ConsentGate onAccepted={boot} onLogout={logout} /></ErrorBoundary></SafeAreaProvider></LangCtx.Provider>;
   const vendor = me.user.role === 'vendor'; const Tabs = vendor ? VendorTabs(me, logout, landing.current) : CoupleTabs(me, logout, landing.current);
   return (<LangCtx.Provider value={{ lang, setLang }}><SafeAreaProvider><StatusBar style="dark" /><ErrorBoundary><NavigationContainer key={lang} initialState={navState.current} onStateChange={state => { navState.current = state; }}>
-    <Stack.Navigator screenOptions={{ ...hdr, animation: 'slide_from_right' }}><Stack.Screen name="Home" component={Tabs} options={{ title: 'Shaadi OS', headerShown: false }} />
+    <Stack.Navigator screenOptions={{ ...hdr, animation: 'slide_from_right' }}><Stack.Screen name="Home" component={Tabs} options={{ title: 'Taiji', headerShown: false }} />
       <Stack.Screen name="Vendor" component={VendorScreen} options={{ title: '' }} /><Stack.Screen name="EnquiryForm" component={EnquiryForm} options={{ title: tr('Enquiry'), animation: 'slide_from_bottom' }} />
       <Stack.Screen name="CompareQuotes" component={CompareQuotes} options={{ title: tr('Compare quotes') }} /><Stack.Screen name="Chat" component={DealScreen} options={({ route }: any) => ({ title: route.params?.title || 'Chat' })} /></Stack.Navigator></NavigationContainer></ErrorBoundary></SafeAreaProvider></LangCtx.Provider>);
 }

@@ -79,7 +79,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
         <View pointerEvents="none" style={{ position: 'absolute', right: -32, bottom: -48, opacity: 0.3 }}><FloralArch size={150} color={C.goldSoft} /></View>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           {onClose ? <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} style={{ minHeight: 36, justifyContent: 'center' }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.goldSoft, fontSize: 15 }}>{tr('Not now')}</Text></Pressable>
-            : <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Logo size={44} radius={10} /><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.goldSoft }}>Shaadi OS</Text></View>}
+            : <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Logo size={44} radius={10} /><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.goldSoft }}>Taiji</Text></View>}
         </View>
         <Text maxFontSizeMultiplier={1.3} style={{ color: '#F4DDE5', fontSize: 15, lineHeight: 22, marginTop: 16, maxWidth: 300 }}>{tr('Find vendors and plan your wedding with your family, in one app.')}</Text>
       </View>
@@ -103,7 +103,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
 
           {step === 2 ? <>
             <Input label={tr('Your name')} value={name} onChangeText={t => { setName(t); setError(''); }} placeholder={tr('e.g. Priya Sharma')} autoFocus autoCapitalize="words" textContentType="name" autoComplete="name" returnKeyType="done" maxLength={80} />
-            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 13, fontWeight: '500', color: C.mute, marginBottom: 8 }}>{tr('How will you use Shaadi OS?')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 13, fontWeight: '500', color: C.mute, marginBottom: 8 }}>{tr('How will you use Taiji?')}</Text>
             {ROLE_OPTIONS.map(([key, icon, title, detail]) => { const on = role === key; return (
               <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { setRole(key); setError(''); }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, marginBottom: 12, borderRadius: 12, borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, backgroundColor: on ? C.tint : C.card, opacity: pressed ? 0.85 : 1 })}>
@@ -113,7 +113,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
               </Pressable>); })}
             <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accept }} accessibilityLabel={tr('I agree to the Terms and Privacy Policy')} onPress={() => { setAccept(!accept); setError(''); }} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 4, minHeight: 44 }}>
               <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: accept ? C.primary : C.faint, backgroundColor: accept ? C.primary : C.card, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>{accept ? <Icon name="check" size={15} color="#fff" strokeWidth={3} /> : null}</View>
-              <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontSize: 14, lineHeight: 21 }}>{tr('I agree to the Terms and Privacy Policy. Shaadi OS will use my name and mobile number to run my account, and I can export or delete my data any time.')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontSize: 14, lineHeight: 21 }}>{tr('I agree to the Terms and Privacy Policy. Taiji will use my name and mobile number to run my account, and I can export or delete my data any time.')}</Text>
             </Pressable>
             <View style={{ flexDirection: 'row', gap: 16, marginBottom: 12, paddingLeft: 36 }}><LegalLink path="/terms" label={tr('Terms')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} />{role === 'vendor' ? <LegalLink path="/vendor-terms" label={tr('Vendor Terms')} /> : null}</View>
           </> : null}

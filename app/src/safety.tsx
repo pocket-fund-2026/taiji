@@ -44,7 +44,7 @@ export function ConsentGate({ onAccepted, onLogout }: { onAccepted: () => void; 
   const accept = async () => { setBusy(true); try { await api('/consent/accept-terms', 'POST', {}); onAccepted(); } catch (e) { err(e); } finally { setBusy(false); } };
   return <View style={{ flex: 1, backgroundColor: C.bg, padding: 24, justifyContent: 'center' }}>
     <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontSize: 26, lineHeight: 32, color: C.ink, fontWeight: '600' }}>{tr('We have updated our Terms and Privacy Policy')}</Text>
-    <M style={{ marginTop: 12, lineHeight: 22 }}>{tr('Please read them and agree to keep using Shaadi OS. We use your name and mobile number to run your account, and you can export or delete your data any time from Profile.')}</M>
+    <M style={{ marginTop: 12, lineHeight: 22 }}>{tr('Please read them and agree to keep using Taiji. We use your name and mobile number to run your account, and you can export or delete your data any time from Profile.')}</M>
     <View style={{ flexDirection: 'row', gap: 20, marginVertical: 12 }}><LegalLink path="/terms" label={tr('Terms of Use')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} /></View>
     <Btn title={busy ? tr('Please wait…') : tr('I agree')} disabled={busy} onPress={accept} />
     <Btn kind="quiet" title={tr('Log out instead')} onPress={onLogout} />

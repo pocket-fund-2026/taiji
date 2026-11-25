@@ -56,7 +56,7 @@ export function GuestProfile({ navigation }: any) {
   return <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ paddingBottom: 40 }}>
     <View style={{ backgroundColor: C.primary, padding: 24, paddingTop: 32, overflow: 'hidden' }}>
       <View pointerEvents="none" style={{ position: 'absolute', right: -30, bottom: -50, opacity: 0.3 }}><FloralArch size={160} color={C.goldSoft} /></View>
-      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 28, lineHeight: 34, color: C.goldSoft, maxWidth: 300 }}>{tr('Welcome to Shaadi OS')}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 28, lineHeight: 34, color: C.goldSoft, maxWidth: 300 }}>{tr('Welcome to Taiji')}</Text>
       <Text maxFontSizeMultiplier={1.3} style={{ color: '#F4DDE5', fontSize: 15, lineHeight: 22, marginTop: 8, maxWidth: 320 }}>{tr('Sign in to plan your wedding, save vendors and send enquiries. Vendors sign in here too.')}</Text>
     </View>
     <View style={{ padding: 16, width: '100%', maxWidth: 640, alignSelf: 'center' }}>

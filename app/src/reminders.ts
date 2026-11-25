@@ -20,7 +20,7 @@ export async function remindersEnabled() {
 export async function enableReminders() {
   if (!supported) throw new Error(tr('Phone reminders work in the iPhone and Android app.'));
   const permission = await Notifications.requestPermissionsAsync();
-  if (!permission.granted) throw new Error(tr('Allow notifications for Shaadi OS in your phone settings to get reminders.'));
+  if (!permission.granted) throw new Error(tr('Allow notifications for Taiji in your phone settings to get reminders.'));
   await AsyncStorage.setItem('reminders', 'on');
   return syncReminders();
 }

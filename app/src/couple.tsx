@@ -69,7 +69,7 @@ export function VendorScreen({ route, navigation }: any) {
               <ContactButtons phone={v.contact_phone} whatsapp={v.contact_whatsapp} email={v.contact_email} />
               <M style={{ marginTop: 8 }}>{tr('From their website')}{v.contact_source ? ` · ${String(v.contact_source).replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}` : ''}</M>
             </Card> : null}
-            <View style={{ flexDirection: 'row', backgroundColor: C.chipBg, borderRadius: 12, padding: 12 }}><Icon name="alert" size={18} color={C.mute} /><M style={{ flex: 1, marginLeft: 8, color: C.ink }}>{tr('This business has not joined Shaadi OS yet, so you contact them directly. Details come from their own website and may be out of date.')}</M></View>
+            <View style={{ flexDirection: 'row', backgroundColor: C.chipBg, borderRadius: 12, padding: 12 }}><Icon name="alert" size={18} color={C.mute} /><M style={{ flex: 1, marginLeft: 8, color: C.ink }}>{tr('This business has not joined Taiji yet, so you contact them directly. Details come from their own website and may be out of date.')}</M></View>
           </View>
           : <View style={{ flexDirection: 'row', backgroundColor: C.okSoft, borderRadius: 12, padding: 12, marginTop: 16 }}><Icon name="shield" size={18} color={C.ok} /><M style={{ flex: 1, marginLeft: 8, color: C.ink }}>{tr('Booking Protection: you pay in milestones and each one is held until you release it.')}</M></View>}
       </Rise>
@@ -86,7 +86,7 @@ export function VendorScreen({ route, navigation }: any) {
       {v.reviewList.length ? v.reviewList.map((r: any, i: number) => <Rise key={i} i={i}><Card>
         <View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ fontWeight: '500', color: C.ink }}>{r.name}</Text><Stars n={r.rating} /></View>
         {r.text ? <M style={{ marginTop: 4 }}>{r.text}</M> : null}{!guest && r.id ? <View style={{ flexDirection: 'row', marginTop: 4 }}><ReportBox kind="review" id={r.id} /></View> : null}</Card></Rise>)
-        : <Empty icon="star" title={tr('No reviews yet')} text={tr('Only couples who booked and paid through Shaadi OS can review, so every review here is from a real booking.')} />}
+        : <Empty icon="star" title={tr('No reviews yet')} text={tr('Only couples who booked and paid through Taiji can review, so every review here is from a real booking.')} />}
       </>}
     </ScrollView>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 10), backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line }}>
