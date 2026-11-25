@@ -1,9 +1,10 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, Text, View } from 'react-native';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { Animated, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from './api';
 import { tr } from './i18n';
-import { Btn, C, Card, Chip, F, Input, M, Tag, confirm, dateIN, err, inr } from './ui';
+import { Btn, C, Card, Chip, F, Input, M, Tag, confirm, dateIN, err, inr, useShake, useReducedMotion, PRESS_SCALE } from './ui';
+import { Collapse } from './motion';
 import { Icon, IconName } from './icons';
 import { categoryLabel } from './marketplace';
 import { useLoad } from './couple';
@@ -15,6 +16,13 @@ const VERSION: string = require('../app.json').expo.version;
 const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 
 // A settings row: icon, label, optional value on the right, and either a tap action or an expanding panel.
+// Press feedback for bare Pressable cards: spring scale to PRESS_SCALE (transform, native driver), skipped under reduced motion.
+function PressScale({ children }: { children: (h: { onPressIn: () => void; onPressOut: () => void }) => React.ReactNode }) {
+  const { reduced } = useReducedMotion(); const v = useRef(new Animated.Value(1)).current;
+  const go = (n: number) => { if (reduced) return; Animated.spring(v, { toValue: n, useNativeDriver: Platform.OS !== 'web', speed: 40, bounciness: 0 }).start(); };
+  return <Animated.View style={{ transform: [{ scale: v }] }}>{children({ onPressIn: () => go(PRESS_SCALE), onPressOut: () => go(1) })}</Animated.View>;
+}
+
 function Row({ icon, label, value, onPress, open, children, first }: { icon: IconName; label: string; value?: React.ReactNode; onPress?: () => void; open?: boolean; children?: React.ReactNode; first?: boolean }) {
   return <View style={{ borderTopWidth: first ? 0 : 1, borderTopColor: C.line }}>
     <Pressable accessibilityRole="button" accessibilityState={children !== undefined ? { expanded: !!open } : undefined} onPress={onPress} disabled={!onPress}
@@ -24,7 +32,7 @@ function Row({ icon, label, value, onPress, open, children, first }: { icon: Ico
       {typeof value === 'string' ? <M>{value}</M> : value}
       {onPress ? <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}><Icon name="chevron" size={16} color={C.faint} /></View> : null}
     </Pressable>
-    {open ? <View style={{ paddingBottom: 16 }}>{children}</View> : null}
+    <Collapse open={!!open}><View style={{ paddingBottom: 16 }}>{children}</View></Collapse>
   </View>;
 }
 
@@ -38,7 +46,7 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
   const [me, reload] = useLoad<any>('/me', null);
   const [overview, setOverview] = useState<any>(null); const [members, setMembers] = useState<any>(null);
   const [biz, setBiz] = useState<{ leads: number; bookings: number; rating: number | null; reviews: number } | null>(null);
-  const [editing, setEditing] = useState(false); const [name, setName] = useState(''); const [saving, setSaving] = useState(false); const [nameError, setNameError] = useState('');
+  const [editing, setEditing] = useState(false); const [name, setName] = useState(''); const [saving, setSaving] = useState(false); const [nameError, setNameError] = useState(''); const shakeName = useShake(nameError);
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [reminders, setReminders] = useState<boolean | null>(null); const [reminderNote, setReminderNote] = useState('');
   const [marketing, setMarketing] = useState<boolean | null>(null);
@@ -87,15 +95,15 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
         </View>
         {!editing ? <Btn small kind="quiet" title={tr('Edit')} onPress={() => { setName(user.name || ''); setNameError(''); setEditing(true); }} /> : null}
       </View>
-      {editing ? <View style={{ marginTop: 16 }}>
+      <Collapse open={editing}><View style={{ marginTop: 16 }}>
         <Input label={tr('Your name')} value={name} onChangeText={t => { setName(t); setNameError(''); }} autoFocus autoCapitalize="words" maxLength={80} returnKeyType="done" onSubmitEditing={saveName} />
-        {nameError ? <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, marginBottom: 8 }}>{nameError}</Text> : null}
+        {nameError ? <Animated.View style={shakeName}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, marginBottom: 8 }}>{nameError}</Text></Animated.View> : null}
         <View style={{ flexDirection: 'row', gap: 8 }}><View style={{ flex: 1 }}><Btn small title={tr('Save')} disabled={saving} onPress={saveName} /></View><View style={{ flex: 1 }}><Btn small kind="ghost" title={tr('Cancel')} onPress={() => setEditing(false)} /></View></View>
         <M style={{ marginTop: 8 }}>{tr('Your mobile number is your login, so it can’t be changed here.')}</M>
-      </View> : null}
+      </View></Collapse>
     </Card>
 
-    {!vendor && me.wedding ? <Pressable accessibilityRole="button" onPress={() => openPlan('settings')} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+    {!vendor && me.wedding ? <PressScale>{ph => <Pressable {...ph} accessibilityRole="button" onPress={() => openPlan('settings')} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
       <Card style={{ backgroundColor: C.primaryDark, borderColor: C.primaryDark }}>
         <M style={{ color: '#F4DDE5' }}>{tr('Your wedding')}</M>
         <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.goldSoft, marginTop: 4 }}>{me.wedding.title}</Text>
@@ -103,10 +111,10 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
         {overview ? <View style={{ flexDirection: 'row', marginTop: 16, gap: 16 }}>{[[`${overview.tasks.done}/${overview.tasks.total}`, tr('Tasks')], [String(overview.guests.attending), tr('Guests coming')], [inr(overview.budget.booked_paise), tr('Booked')]].map(([v, l]) =>
           <View key={l} style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: '#fff', fontSize: 17, fontWeight: '500', fontVariant: ['tabular-nums'] }} numberOfLines={1}>{v}</Text><M style={{ color: '#F4DDE5' }}>{l}</M></View>)}</View> : null}
       </Card>
-    </Pressable> : null}
+    </Pressable>}</PressScale> : null}
     {!vendor && !me.wedding ? <Card><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}>{tr('You haven’t set up a wedding yet.')}</Text><Btn small title={tr('Set up your wedding')} onPress={() => nav.navigate('Plan')} /></Card> : null}
 
-    {vendor ? <Pressable accessibilityRole="button" onPress={() => nav.navigate('Store')} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+    {vendor ? <PressScale>{ph => <Pressable {...ph} accessibilityRole="button" onPress={() => nav.navigate('Store')} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
       <Card>
         <M>{tr('Your business')}</M>
         {me.vendor ? <>
@@ -117,7 +125,7 @@ export function ProfileScreen({ onLogout }: { onLogout: () => void }) {
             <View key={l} style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 17, fontWeight: '500', fontVariant: ['tabular-nums'] }}>{v}</Text><M>{l}</M></View>)}</View> : null}
         </> : <><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, marginTop: 4 }}>{tr('Your storefront isn’t set up yet. Couples can’t find you until it is.')}</Text><Btn small title={tr('Set up your storefront')} onPress={() => nav.navigate('Store')} /></>}
       </Card>
-    </Pressable> : null}
+    </Pressable>}</PressScale> : null}
 
     <Section title={tr('Settings')}>
       {!vendor ? <Row first icon="calendar" label={tr('Phone reminders')} value={<Chip label={reminders ? tr('On') : tr('Off')} on={!!reminders} onPress={toggleReminders} />} /> : null}

@@ -1,12 +1,13 @@
 // Plan a wedding with no account. The plan is built once by the server's preview endpoint, then lives on this phone
 // (AsyncStorage). If the person signs up later, importLocalPlan() moves it onto their account.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import { Collapse } from './motion';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 import { getPrefs } from './prefs';
 import { tr } from './i18n';
-import { Bar, Btn, C, Card, Check, Chip, DateField, F, Input, M, confirm, dateIN, inr, todayISO } from './ui';
+import { Bar, Btn, C, Card, Check, Chip, DateField, F, Input, M, confirm, dateIN, inr, todayISO, useShake } from './ui';
 import { FloralArch } from './visuals';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CityPicker } from './citypicker';
@@ -70,7 +71,7 @@ function Hero({ title, text }: { title: string; text: string }) {
 
 function Setup({ navigation, onCreated }: { navigation: any; onCreated: (p: LPPlan) => void }) {
   const [f, setF] = useState({ date: '', city: '', budget: '1500000', guests: '250', community: 'North Indian Hindu' });
-  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [listed, setListed] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [listed, setListed] = useState<string[]>([]); const errShake = useShake(error);
   useEffect(() => { api('/vendors/cities').then((r: any) => setListed((r || []).map((x: any) => x.city))).catch(() => {}); getPrefs().then(p => { if (p?.city) setF(x => x.city ? x : { ...x, city: p.city! }); }); }, []);
   const set = (k: string, v: string) => { setF(x => ({ ...x, [k]: v })); setError(''); };
   // The plan is built on the phone by the same rules the server uses, so it works with no internet at all.
@@ -96,7 +97,7 @@ function Setup({ navigation, onCreated }: { navigation: any; onCreated: (p: LPPl
       <Input label={tr('About how many guests?')} value={f.guests} onChangeText={v => set('guests', v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" placeholder="250" />
       <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 13, fontWeight: '500', color: C.mute, marginBottom: 8 }}>{tr('Your traditions')}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>{COMMUNITIES.map(c => <Chip key={c} label={tr(c)} on={f.community === c} onPress={() => set('community', c)} />)}</View>
-      {!!error && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text>}
+      {!!error && <Animated.View style={errShake}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text></Animated.View>}
       <Btn title={busy ? tr('Building your plan…') : tr('Build my plan')} onPress={go} disabled={busy} />
       <Pressable accessibilityRole="button" onPress={() => navigation.navigate('SignIn')} style={{ minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
         <Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontSize: 15, fontWeight: '500' }}>{tr('I already have an account · Sign in')}</Text>
@@ -154,10 +155,10 @@ function Tasks({ plan, update, today }: { plan: LPPlan; update: (fn: (p: LPPlan)
     </View>
     {sugg.length > 0 ? <View style={{ marginTop: 8 }}>
       <Btn kind="ghost" title={`${showSug ? tr('Hide') : tr('Show')} ${sugg.length} ${tr('suggested tasks')}`} onPress={() => setShowSug(!showSug)} />
-      {showSug ? sugg.map(s => <View key={s.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
+      <Collapse open={showSug}>{sugg.map(s => <View key={s.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
         <View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ fontSize: 15, color: C.ink }}>{tr(s.title)}</Text><Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>{tr(s.phase)} · {dateIN(s.due)}</Text></View>
         <Btn small kind="quiet" title={tr('Add')} onPress={() => update(p => ({ ...p, tasks: [...p.tasks, { id: uid(), title: s.title, due: s.due, done: false }] }))} />
-      </View>) : null}
+      </View>)}</Collapse>
     </View> : null}
   </View>;
 }

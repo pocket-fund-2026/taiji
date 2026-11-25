@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 import { LangCtx, tr } from './i18n';
 import { Btn, C, Card, Chip, F, Input, M, inr } from './ui';
+import { Collapse } from './motion';
 import { Icon } from './icons';
 import { getLocalPlan } from './localplan';
 import { categoryLabel } from './marketplace';
@@ -112,7 +113,7 @@ export function Assistant({ navigation }: any) {
       </ScrollView>
 
       <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.bg, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
-        {showDrafts ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>{draftKinds.map(([k, l]) => <Chip key={k} label={tr(l)} on={false} onPress={() => send({ content: `${tr('Write a')} ${tr(l).toLowerCase()}`, mode: 'draft', draft_kind: k })} />)}</View> : null}
+        <Collapse open={showDrafts}><View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>{draftKinds.map(([k, l]) => <Chip key={k} label={tr(l)} on={false} onPress={() => send({ content: `${tr('Write a')} ${tr(l).toLowerCase()}`, mode: 'draft', draft_kind: k })} />)}</View></Collapse>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ paddingRight: 8 }}>
           <Chip label={tr('What should I do first?')} on={false} onPress={() => send({ content: tr('What should I do first?') })} />
           <Chip label={tr('Find vendors')} on={vendorMode} onPress={() => { setVendorMode(!vendorMode); setShowDrafts(false); }} />

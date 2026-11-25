@@ -9,6 +9,9 @@ import { categoryLabel } from './marketplace';
 import { RemindersList } from './organiser';
 import { PlanningJourney } from './journey';
 import { syncReminders } from './reminders';
+import { Collapse, Slide } from './motion';
+import { PressScale } from './pressscale';
+import { Effort, Hint, MilestoneBar, Moment, SP, Spotlight, Stepper, useMilestoneMoment } from './ux';
 
 function usePlanner<T>(path: string) {
   const [data, setData] = useState<T | null>(null);
@@ -41,6 +44,8 @@ const STAGE: Record<string, { label: string; tone: 'ok' | 'gold' | 'mute'; icon:
 };
 // Words in a task title that tie it to a vendor service, so "Book venue" can offer the right next step.
 const TASK_SERVICE: [RegExp, string][] = [[/venue/i, 'venue'], [/cater/i, 'caterer'], [/photograph/i, 'photographer'], [/decor/i, 'decor'], [/makeup/i, 'makeup'], [/mehndi|mehendi/i, 'mehndi'], [/\bdj\b|music/i, 'dj'], [/pandit|priest/i, 'pandit']];
+const plus7 = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+const STAGE_ORDER = ['not_started', 'shortlisted', 'enquired', 'booked'];
 const monthLabel = (ym: string) => new Date(ym + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 // The single most urgent open task (overdue first, then by date), with the action that moves it forward.
@@ -55,13 +60,14 @@ function UpNext({ roadmap, open, nav }: { roadmap: any; open: (tab: string) => v
     : v.stage === 'enquired' && v.enquiry_id ? { title: tr('Open chat'), go: () => nav.navigate('Chat', { id: v.enquiry_id, title: v.enquiry_vendor }) }
     : v.stage === 'shortlisted' ? { title: `${tr('Compare')} ${v.shortlisted} ${tr('shortlisted')}`, go: () => open('shortlist') }
     : { title: `${tr('Find')} ${label}`, go: () => nav.navigate('Discover', { category: service, at: Date.now() }) };
-  return <Card style={{ borderColor: task.overdue ? C.warn : C.line }}>
-    <View style={s.row}><M>{tr('Up next')}</M>{task.overdue ? <Tag tone="warn" label={`${tr('Overdue since')} ${dateLabel(task.due)}`} /> : <Tag label={dateLabel(task.due)} />}</View>
+  const mins = !v || v.stage === 'booked' ? 2 : 5;
+  return <Spotlight label={tr('Do this next')}>
+    <View style={s.row}><Effort mins={mins} />{task.overdue ? <Tag tone="warn" label={`${tr('Overdue since')} ${dateLabel(task.due)}`} /> : <Tag label={dateLabel(task.due)} />}</View>
     <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.ink, marginTop: 4 }}>{task.title}</Text>
     {v && v.stage !== 'booked' ? <M style={{ marginTop: 2 }}>{categoryLabel(service!)}: {tr(STAGE[v.stage].label).toLowerCase()}</M> : null}
     <Btn title={action.title} onPress={action.go} />
     <RemindersList open={open} skip={task.title} />
-  </Card>;
+  </Spotlight>;
 }
 
 // The whole wedding on one screen: where each vendor service stands, then a month-by-month timeline to the day.
@@ -69,8 +75,10 @@ export function Overview({ open, nav }: { open: (tab: string) => void; nav: any 
   const { data: d, busy, error, load } = usePlanner<any>('/planner/overview');
   const { data: r, load: loadRoadmap, error: roadmapError } = usePlanner<any>('/planner/roadmap');
   const refresh = () => { load(); loadRoadmap(); };
-  const [showAllVendors, setShowAllVendors] = useState(false); const [showFullTimeline, setShowFullTimeline] = useState(false);
-  return <ScrollView contentContainerStyle={content} refreshControl={<RefreshControl refreshing={busy} onRefresh={refresh} tintColor={C.primary} />}>
+  const [showJourney, setShowJourney] = useState(false); const [showAllVendors, setShowAllVendors] = useState(false); const [showFullTimeline, setShowFullTimeline] = useState(false);
+  const ready = d && r ? { done: d.tasks.done + r.booked_count, total: d.tasks.total + r.vendors.length } : null;
+  const [moment, clearMoment] = useMilestoneMoment('plan', ready ? Math.round(Math.min(ready.total + 1, ready.done + 1) / (ready.total + 1) * 100) : null);
+  return <View style={{ flex: 1 }}><ScrollView contentContainerStyle={content} refreshControl={<RefreshControl refreshing={busy} onRefresh={refresh} tintColor={C.primary} />}>
     <Failure error={error || roadmapError} retry={refresh} />
     {!d ? <M>{tr('Loading your overview…')}</M> : <>
       <Card style={{ backgroundColor: C.primaryDark, borderColor: C.primaryDark, overflow: 'hidden', padding: 24 }}>
@@ -84,12 +92,14 @@ export function Overview({ open, nav }: { open: (tab: string) => void; nav: any 
               <Text maxFontSizeMultiplier={1.3} style={{ color: '#fff', fontSize: 17, fontWeight: '500', fontVariant: ['tabular-nums'] }} numberOfLines={1}>{value}</Text><M style={{ color: '#F4DDE5' }}>{label}</M>
             </Pressable>)}
         </View>
+        {ready ? <View style={{ marginTop: SP.block }}><MilestoneBar onDark done={ready.done} total={ready.total} endowed={1} noun="steps" /></View> : null}
       </Card>
 
-      <PlanningJourney open={open} refreshKey={d} />
+      <Hint id="plan-overview" text={tr('Start with the highlighted step. Everything else can wait.')} />
       {r ? <UpNext roadmap={r} open={open} nav={nav} /> : null}
       <View style={[s.row, { marginTop: 8 }]}><H style={{ marginVertical: 8 }}>{tr('Vendors')}</H>{r ? <M style={{ fontVariant: ['tabular-nums'] }}>{r.booked_count} {tr('of')} {r.vendors.length} {tr('booked')}</M> : null}</View>
-      {r ? <Card style={{ paddingVertical: 4 }}>{(showAllVendors ? r.vendors : r.vendors.filter((v: any) => v.stage !== 'booked').slice(0, 3)).map((v: any, i: number) => {
+      {r ? <Card style={{ paddingVertical: 4 }}>{(() => { const base = r.vendors.filter((v: any) => v.stage !== 'booked').slice(0, 3); return r.vendors.map((v: any, i: number) => {
+        const extra = !base.includes(v); const first = !r.vendors.slice(0, i).some((p: any) => showAllVendors || base.includes(p));
         const st = STAGE[v.stage];
         const action = v.stage === 'not_started' ? { title: tr('Find'), go: () => nav.navigate('Discover', { category: v.category, at: Date.now() }) }
           : v.stage === 'shortlisted' ? { title: tr('Compare'), go: () => open('shortlist') }
@@ -97,21 +107,29 @@ export function Overview({ open, nav }: { open: (tab: string) => void; nav: any 
         const detail = v.stage === 'booked' ? `${v.booked_vendor}${v.allocated_paise ? ` · ${inr(v.booked_paise)} ${tr('of')} ${inr(v.allocated_paise)}` : ''}`
           : v.stage === 'enquired' ? `${v.enquiries} ${tr(v.enquiries === 1 ? 'enquiry' : 'enquiries')}${v.quotes ? ` · ${v.quotes} ${tr(v.quotes === 1 ? 'quote to review' : 'quotes to review')}` : ''}`
           : v.stage === 'shortlisted' ? `${v.shortlisted} ${tr('shortlisted')}` : v.allocated_paise ? `${tr('Budget')} ${inr(v.allocated_paise)}` : '';
-        return <View key={v.category} style={[s.row, { paddingVertical: 12, gap: 12, borderTopWidth: i ? 1 : 0, borderTopColor: C.line }]}>
+        const row = <View style={[s.row, { paddingVertical: 12, gap: 12, borderTopWidth: first ? 0 : 1, borderTopColor: C.line }]}>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500' }}>{categoryLabel(v.category)}</Text><Tag tone={st.tone} icon={st.icon} label={tr(st.label)} /></View>
-            {detail ? <M style={{ marginTop: 4 }} numberOfLines={2}>{detail}</M> : null}
+            <View style={{ marginTop: SP.near }}><Stepper steps={STAGE_ORDER.map(k => tr(STAGE[k].label))} current={Math.max(0, STAGE_ORDER.indexOf(v.stage))} /></View>
+            {detail ? <M style={{ marginTop: SP.near }} numberOfLines={2}>{detail}</M> : null}
           </View>
           {action ? <Btn small kind="quiet" title={action.title} onPress={action.go} /> : null}
-        </View>; })}
+        </View>;
+        return extra ? <Collapse key={v.category} open={showAllVendors}>{row}</Collapse> : <React.Fragment key={v.category}>{row}</React.Fragment>; }); })()}
         <Pressable accessibilityRole="button" onPress={() => setShowAllVendors(!showAllVendors)} style={{ minHeight: 44, justifyContent: 'center', borderTopWidth: 1, borderTopColor: C.line }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontSize: 13, fontWeight: '500' }}>{showAllVendors ? tr('Show less') : `${tr('Show all')} ${r.vendors.length}`}</Text></Pressable>
       </Card> : <M>{tr('Loading your vendors…')}</M>}
 
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: showJourney }} onPress={() => setShowJourney(!showJourney)} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SP.block, marginBottom: SP.near }}>
+        <H style={{ marginVertical: 8 }}>{tr('Planning journey')}</H>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.tight }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontSize: 13, fontWeight: '500' }}>{showJourney ? tr('Hide') : tr('Show')}</Text><View style={{ transform: [{ rotate: showJourney ? '-90deg' : '90deg' }] }}><Icon name="chevron" size={16} color={C.primary} /></View></View>
+      </Pressable>
+      <Collapse open={showJourney}><PlanningJourney open={open} refreshKey={d} /></Collapse>
+
       <H style={{ marginTop: 16 }}>{tr('Timeline')}</H>
-      {r ? (showFullTimeline ? r.months : r.months.slice(0, 2)).map((m: any, i: number, shown: any[]) => <View key={m.month} style={{ flexDirection: 'row' }}>
+      {r ? r.months.map((m: any, i: number, shown: any[]) => { const extra = i >= 2; const lastShown = showFullTimeline ? shown.length - 1 : Math.min(1, shown.length - 1); const block = <View style={{ flexDirection: 'row' }}>
         <View style={{ width: 24, alignItems: 'center' }}>
           <View style={{ width: 12, height: 12, borderRadius: 6, marginTop: 6, backgroundColor: i === 0 ? C.primary : m.wedding ? C.gold : C.card, borderWidth: 2, borderColor: i === 0 ? C.primary : m.wedding ? C.gold : C.line }} />
-          {i < shown.length - 1 ? <View style={{ flex: 1, width: 2, backgroundColor: C.line, marginTop: 4 }} /> : null}
+          {i < lastShown ? <View style={{ flex: 1, width: 2, backgroundColor: C.line, marginTop: 4 }} /> : null}
         </View>
         <View style={{ flex: 1, paddingLeft: 8, paddingBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 17, color: C.ink }}>{monthLabel(m.month)}</Text>{i === 0 ? <Tag tone="gold" label={tr('This month')} /> : null}</View>
@@ -119,33 +137,35 @@ export function Overview({ open, nav }: { open: (tab: string) => void; nav: any 
             .sort((x: any, y: any) => x.date.localeCompare(y.date)).map((item: any) => item.kind === 'wedding'
               ? <View key="wedding" style={{ flexDirection: 'row', gap: 8, marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: C.goldSoft }}><Icon name="ring" size={18} color={C.gold} /><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500', flex: 1 }}>{tr('Wedding day')} · {dateIN(m.wedding)}</Text></View>
               : item.kind === 'event'
-              ? <Pressable key={'e' + item.e.id} accessibilityRole="button" onPress={() => open('events')} style={{ flexDirection: 'row', gap: 8, marginTop: 8, minHeight: 32, alignItems: 'flex-start' }}>
-                <Icon name="marigold" size={18} color={C.gold} /><View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500' }}>{item.e.name}</Text><M>{dateIN(item.e.date)}{item.e.venue ? ` · ${item.e.venue}` : ''}</M></View></Pressable>
-              : <Pressable key={'t' + item.t.id} accessibilityRole="button" onPress={() => open('checklist')} style={{ flexDirection: 'row', gap: 8, marginTop: 8, minHeight: 32, alignItems: 'flex-start' }}>
-                <Icon name="checklist" size={18} color={item.t.overdue ? C.warn : C.mute} /><View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}>{item.t.title}</Text><M style={{ color: item.t.overdue ? C.warn : C.mute }}>{item.t.overdue ? `${tr('Overdue')} · ${dateIN(item.t.due)}` : dateIN(item.t.due)}</M></View></Pressable>)}
+              ? <PressScale key={'e' + item.e.id} accessibilityRole="button" onPress={() => open('events')} style={{ flexDirection: 'row', gap: 8, marginTop: 8, minHeight: 32, alignItems: 'flex-start' }}>
+                <Icon name="marigold" size={18} color={C.gold} /><View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500' }}>{item.e.name}</Text><M>{dateIN(item.e.date)}{item.e.venue ? ` · ${item.e.venue}` : ''}</M></View></PressScale>
+              : <PressScale key={'t' + item.t.id} accessibilityRole="button" onPress={() => open('checklist')} style={{ flexDirection: 'row', gap: 8, marginTop: 8, minHeight: 32, alignItems: 'flex-start' }}>
+                <Icon name="checklist" size={18} color={item.t.overdue ? C.warn : C.mute} /><View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}>{item.t.title}</Text><M style={{ color: item.t.overdue ? C.warn : C.mute }}>{item.t.overdue ? `${tr('Overdue')} · ${dateIN(item.t.due)}` : dateIN(item.t.due)}</M></View></PressScale>)}
           {!m.events.length && !m.tasks.length && !m.wedding ? <M style={{ marginTop: 4 }}>{tr('Nothing planned yet')}</M> : null}
         </View>
-      </View>) : null}
+      </View>; return extra ? <Collapse key={m.month} open={showFullTimeline}>{block}</Collapse> : <React.Fragment key={m.month}>{block}</React.Fragment>; }) : null}
       {r && r.months.length > 2 ? <Btn kind="quiet" title={showFullTimeline ? tr('Show less') : `${tr('Show full timeline')} · ${r.months.length} ${tr('months')}`} onPress={() => setShowFullTimeline(!showFullTimeline)} /> : null}
       {r?.unscheduled.length ? <Btn kind="quiet" icon="calendar" title={`${r.unscheduled.length} ${tr('tasks without a date')}`} onPress={() => open('checklist')} /> : null}
     </>}
-  </ScrollView>;
+  </ScrollView>
+  {moment ? <Moment title={moment.title} detail={moment.detail} onDone={clearMoment} /> : null}
+  </View>;
 }
 
 export function TaskManager() {
   const { data, busy, error, load } = usePlanner<any[]>('/tasks');
   const { data: guide, load: loadGuide, error: guideError } = usePlanner<any[]>('/planner/guide');
-  const [title, setTitle] = useState(''); const [due, setDue] = useState(''); const [filter, setFilter] = useState('pending'); const [saving, setSaving] = useState(false);
+  const [title, setTitle] = useState(''); const [due, setDue] = useState(plus7()); const [filter, setFilter] = useState('pending'); const [saving, setSaving] = useState(false);
   const [owner, setOwner] = useState(''); const [notes, setNotes] = useState(''); const [priority, setPriority] = useState('normal');
   const [editOwner, setEditOwner] = useState(''); const [editNotes, setEditNotes] = useState(''); const [editPriority, setEditPriority] = useState('normal');
-  const [mode, setMode] = useState<'mine' | 'ideas'>('mine'); const [phase, setPhase] = useState('All'); const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useState<'mine' | 'ideas'>('mine'); const [phase, setPhase] = useState('All'); const [adding, setAdding] = useState(false); const [doneMoment, setDoneMoment] = useState(false);
   const [editing, setEditing] = useState<number | null>(null); const [editTitle, setEditTitle] = useState(''); const [editDue, setEditDue] = useState('');
   const tasks = data || []; const today = new Date().toISOString().slice(0, 10); const done = tasks.filter(t => t.done).length;
   const action = async (path: string, method: string, body?: any) => {
     setSaving(true);
     try { await api(path, method, body); await load(); await loadGuide(); syncReminders().catch(() => {}); return true; } catch (e) { err(e); return false; } finally { setSaving(false); }
   };
-  const add = async () => { if (await action('/tasks', 'POST', { title: title.trim(), owner, notes, priority, ...(due ? { due } : {}) })) { setTitle(''); setDue(''); setOwner(''); setNotes(''); setPriority('normal'); return true; } return false; };
+  const add = async () => { if (await action('/tasks', 'POST', { title: title.trim(), owner, notes, priority, ...(due ? { due } : {}) })) { setTitle(''); setDue(plus7()); setOwner(''); setNotes(''); setPriority('normal'); return true; } return false; };
   const saveEdit = async () => { if (editing !== null && await action(`/tasks/${editing}`, 'PATCH', { title: editTitle.trim(), due: editDue || null, owner: editOwner, notes: editNotes, priority: editPriority })) setEditing(null); };
   const addIdea = async (key: string) => action(`/planner/guide/${key}`, 'POST');
   const remove = async (id: number) => { if (await confirm(tr('Delete task?'), tr('This task will be removed from your checklist.'), tr('Delete'), true)) await action(`/tasks/${id}`, 'DELETE'); };
@@ -155,8 +175,9 @@ export function TaskManager() {
   const suggestions = available.filter(item => phase === 'All' || item.phase === phase);
   // The three most urgent ideas surface in the plan card itself: catch-up items first, then by suggested date.
   const nextUp = [...available].sort((a, b) => Number(!!b.is_catch_up) - Number(!!a.is_catch_up) || String(a.due || '9999').localeCompare(String(b.due || '9999'))).slice(0, 3);
-  return <ScrollView contentContainerStyle={content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={busy} onRefresh={load} tintColor={C.primary} />}>
+  return <View style={{ flex: 1 }}><ScrollView contentContainerStyle={content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={busy} onRefresh={load} tintColor={C.primary} />}>
     <Failure error={error} retry={load} />
+    <Hint id="plan-checklist" text={tr('Tap Mark done as you finish a task. New tasks get a due date a week out.')} />
     <Card>
       <M>{tr('Checklist')}</M>
       <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, color: C.ink, fontSize: 24, marginTop: 4 }}>{done} {tr('of')} {tasks.length} {tr('tasks done')}</Text>
@@ -174,16 +195,17 @@ export function TaskManager() {
       </View>}
     </Card>
     <View style={{ flexDirection: 'row', marginBottom: 8 }}><Chip label={tr('My tasks')} on={mode === 'mine'} onPress={() => setMode('mine')} /><Chip label={tr('Planning ideas')} on={mode === 'ideas'} onPress={() => setMode('ideas')} /></View>
+    <Slide key={mode} dir={mode === 'ideas' ? 1 : -1}>
     {mode === 'mine' ? <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>{[['pending', 'To do'], ['overdue', 'Overdue'], ['done', 'Done'], ['high', 'High priority'], ['unassigned', 'Unassigned'], ['all', 'All']].map(([key, label]) => <Chip key={key} label={tr(label)} on={filter === key} onPress={() => setFilter(key)} />)}</ScrollView>
       {!busy && !visible.length && <Empty icon="checklist" title={tr('No tasks here')} text={tr('Add a task or choose another filter.')} />}
       <Btn small kind="quiet" icon="share" title={tr('Share open task handover')} disabled={!tasks.some(t => !t.done)} onPress={() => Share.share({ message: [tr('Wedding task handover'), ...tasks.filter(t => !t.done).map(t => `${t.priority === 'high' ? '[High priority] ' : ''}${t.title} · ${t.owner || tr('Unassigned')} · ${dateLabel(t.due)}${t.notes ? `\n${t.notes}` : ''}`)].join('\n\n') }).catch(err)} />
       {visible.map((t, index) => <Rise key={t.id} i={index}><Card style={{ paddingVertical: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}><View style={{ flex: 1, paddingRight: 8 }}><Text maxFontSizeMultiplier={1.3} style={{ color: t.done ? C.mute : C.ink, fontSize: 15, fontWeight: '500', textDecorationLine: t.done ? 'line-through' : 'none' }}>{t.title}</Text><M style={{ marginTop: 4 }}>{dateLabel(t.due)} · {t.owner || tr('Unassigned')}{t.priority === 'high' ? ` · ${tr('High priority')}` : ''}</M>{t.notes ? <M style={{ marginTop: 4 }}>{t.notes}</M> : null}</View><Tag tone={t.done ? 'ok' : t.due && t.due < today ? 'warn' : 'mute'} label={t.done ? tr('Done') : t.due && t.due < today ? tr('Overdue') : t.due === today ? tr('Today') : tr('To do')} /></View>
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}><View style={{ flex: 1 }}><Btn small kind="quiet" icon={t.done ? 'checklist' : 'check'} title={t.done ? tr('Reopen') : tr('Mark done')} disabled={saving} onPress={() => action(`/tasks/${t.id}`, 'PATCH', { done: !t.done })} /></View><View style={{ flex: 1 }}><Btn small kind="ghost" title={tr('Edit')} disabled={saving} onPress={() => { setEditing(editing === t.id ? null : t.id); setEditTitle(t.title); setEditDue(t.due || ''); setEditOwner(t.owner || ''); setEditNotes(t.notes || ''); setEditPriority(t.priority || 'normal'); }} /></View></View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}><View style={{ flex: 1 }}><Btn small kind="quiet" icon={t.done ? 'checklist' : 'check'} title={t.done ? tr('Reopen') : tr('Mark done')} disabled={saving} onPress={async () => { if (await action(`/tasks/${t.id}`, 'PATCH', { done: !t.done }) && !t.done) setDoneMoment(true); }} /></View><View style={{ flex: 1 }}><Btn small kind="ghost" title={tr('Edit')} disabled={saving} onPress={() => { setEditing(editing === t.id ? null : t.id); setEditTitle(t.title); setEditDue(t.due || ''); setEditOwner(t.owner || ''); setEditNotes(t.notes || ''); setEditPriority(t.priority || 'normal'); }} /></View></View>
         {editing === t.id && <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 16 }}><Input label={tr('Task name')} value={editTitle} onChangeText={setEditTitle} maxLength={200} /><DateField label={tr('Due date (optional)')} value={editDue || ''} onChange={setEditDue} optional /><TaskDetails owner={editOwner} notes={editNotes} priority={editPriority} setOwner={setEditOwner} setNotes={setEditNotes} setPriority={setEditPriority} /><Btn small title={tr('Save task')} disabled={saving || !editTitle.trim()} onPress={saveEdit} /><Btn small kind="quiet" title={tr('Delete task')} disabled={saving} onPress={() => remove(t.id)} /></View>}
       </Card></Rise>)}
-      {adding ? <Card style={{ marginTop: 8 }}><Input label={tr('Task name')} value={title} onChangeText={setTitle} placeholder={tr('What needs to be done?')} maxLength={200} autoFocus /><DateField label={tr('Due date (optional)')} value={due} onChange={setDue} optional /><TaskDetails owner={owner} notes={notes} priority={priority} setOwner={setOwner} setNotes={setNotes} setPriority={setPriority} /><Btn title={tr('Add task')} disabled={saving || !title.trim()} onPress={async () => { if (await add()) setAdding(false); }} /><Btn kind="ghost" title={tr('Cancel')} onPress={() => setAdding(false)} /></Card>
+      {adding ? <Card style={{ marginTop: SP.near }}><M style={{ marginBottom: SP.near }}>{tr('Time-boxed: due in 7 days unless you change the date.')}</M><Input label={tr('Task name')} value={title} onChangeText={setTitle} placeholder={tr('What needs to be done?')} maxLength={200} autoFocus /><DateField label={tr('Due date (optional)')} value={due} onChange={setDue} optional /><TaskDetails owner={owner} notes={notes} priority={priority} setOwner={setOwner} setNotes={setNotes} setPriority={setPriority} /><Btn title={tr('Add task')} disabled={saving || !title.trim()} onPress={async () => { if (await add()) setAdding(false); }} /><Btn kind="ghost" title={tr('Cancel')} onPress={() => setAdding(false)} /></Card>
         : <Btn kind="quiet" icon="plus" title={tr('Add a task')} onPress={() => setAdding(true)} />}
     </> : <>
       <H style={{ marginBottom: 2 }}>{tr('Planning ideas')}</H><M style={{ marginBottom: 16 }}>{tr('Suggested timing follows your wedding date. Choose only what suits you.')}</M>
@@ -192,7 +214,10 @@ export function TaskManager() {
       {suggestions.length ? suggestions.map((item, index) => <Rise key={item.key} i={index}><Card style={{ borderLeftWidth: 3, borderLeftColor: C.gold, paddingVertical: 16 }}><M style={{ color: C.gold, fontWeight: '500' }}>{tr(item.phase)}</M><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontWeight: '500', fontSize: 17, marginTop: 4 }}>{tr(item.title)}</Text><View style={[s.row, { marginTop: 12 }]}><M>{item.is_catch_up ? tr('Start now') : `${tr('Suggested by')} ${dateLabel(item.due)}`}</M><View style={{ minWidth: 88 }}><Btn small kind="quiet" icon="plus" title={tr('Add')} disabled={saving} onPress={() => addIdea(item.key)} /></View></View></Card></Rise>) : <Empty icon="checklist" title={tr('All ideas added')} text={tr('Your checklist has every suggestion in this section.')} />}
       <M style={{ marginTop: 4 }}>{tr('Inspired by the Brides wedding-planning timeline; adapted for flexible, multi-event celebrations.')}</M>
     </>}
-  </ScrollView>;
+    </Slide>
+  </ScrollView>
+  {doneMoment ? <Moment title={tr('Task done')} detail={tr('One step closer to the wedding.')} onDone={() => setDoneMoment(false)} /> : null}
+  </View>;
 }
 
 function TaskDetails({ owner, notes, priority, setOwner, setNotes, setPriority }: { owner: string; notes: string; priority: string; setOwner: (v: string) => void; setNotes: (v: string) => void; setPriority: (v: string) => void }) {

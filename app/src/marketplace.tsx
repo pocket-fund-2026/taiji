@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { FlatList, Linking, Pressable, ScrollView, Text, View, RefreshControl } from 'react-native';
+import { Animated, FlatList, Linking, Pressable, ScrollView, Text, View, RefreshControl } from 'react-native';
 import { api } from './api';
 import { tr } from './i18n';
-import { Btn, C, Card, Chip, Empty, F, H, Input, Loading, M, Rise, Tag, inr, s, dateIN } from './ui';
+import { Btn, C, Card, Chip, Empty, F, H, Input, Loading, M, Rise, Tag, inr, s, dateIN, useShake } from './ui';
+import { Collapse } from './motion';
+import { PressScale } from './pressscale';
 import { CAT_ICON, Icon, Logo } from './icons';
 import { CategoryCover, FloralArch, SectionTitle, VendorCover, categoryPalette } from './visuals';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PortfolioPhoto, VendorCatalog } from './catalog';
 import { getPrefs, Prefs } from './prefs';
 import { CityPicker } from './citypicker';
+import { Hint, MoreToggle, SP, useRecent } from './ux';
 
 const CATEGORIES: [string, string][] = [['photographer', 'Photography'], ['makeup', 'Makeup'], ['mehndi', 'Mehndi'], ['decor', 'Decor'], ['venue', 'Venues'], ['caterer', 'Catering'], ['dj', 'DJ & music'], ['pandit', 'Pandit']];
 // Services grouped the way a family thinks about them, each group collapsible, like the sections of a dashboard.
@@ -21,12 +24,12 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 function ServiceTile({ k, count, on, onPress, grow }: { k: string; count?: number; on: boolean; onPress: () => void; grow: boolean }) {
   const pal = categoryPalette(k); const label = categoryLabel(k);
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${label}${count != null ? ', ' + count : ''}`} accessibilityState={{ selected: on }} onPress={onPress}
-    style={({ pressed }) => ({ width: '31.5%', flexGrow: grow ? 1 : 0, minHeight: 92, paddingVertical: 12, borderRadius: 12, borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, backgroundColor: on ? C.tint : C.card, alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.85 : 1 })}>
+  return <PressScale accessibilityRole="button" accessibilityLabel={`${label}${count != null ? ', ' + count : ''}`} accessibilityState={{ selected: on }} onPress={onPress}
+    style={({ pressed }: { pressed: boolean }) => ({ width: '31.5%', flexGrow: grow ? 1 : 0, minHeight: 92, paddingVertical: 12, borderRadius: 12, borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, backgroundColor: on ? C.tint : C.card, alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.85 : 1 })}>
     <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: pal.bg, alignItems: 'center', justifyContent: 'center' }}><Icon name={CAT_ICON[k] || 'store'} size={20} color={pal.ink} /></View>
     <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: C.ink, fontWeight: on ? '600' : '500', textAlign: 'center' }} numberOfLines={1}>{label}</Text>
     {count != null ? <M style={{ fontSize: 11 }}>{count} {tr('listed')}</M> : null}
-  </Pressable>;
+  </PressScale>;
 }
 function ServiceGroups({ category, setCategory, counts, picks }: { category: string; setCategory: (c: string) => void; counts?: Record<string, number>; picks: string[] }) {
   const [closed, setClosed] = useState<Record<string, boolean>>({});
@@ -37,7 +40,7 @@ function ServiceGroups({ category, setCategory, counts, picks }: { category: str
       <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, fontSize: 13, fontWeight: '600', color: name === 'For you' ? C.primary : C.mute }}>{tr(name)}{counts ? ` · ${total}` : ''}</Text>
       <View style={{ transform: [{ rotate: shut ? '0deg' : '90deg' }] }}><Icon name="chevron" size={16} color={C.mute} strokeWidth={2} /></View>
     </Pressable>
-    {!shut && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{keys.map(k => <ServiceTile key={name + k} k={k} count={counts ? counts[k] || 0 : undefined} on={category === k} grow={keys.length > 1} onPress={() => setCategory(category === k ? '' : k)} />)}</View>}
+    <Collapse open={!shut}><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{keys.map(k => <ServiceTile key={name + k} k={k} count={counts ? counts[k] || 0 : undefined} on={category === k} grow={keys.length > 1} onPress={() => setCategory(category === k ? '' : k)} />)}</View></Collapse>
   </View>; })}</View>;
 }
 // Couples budget in lakhs, so the common ceilings are one tap away.
@@ -85,9 +88,12 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
   const [budgetDraft, setBudgetDraft] = useState(''); const [budget, setBudget] = useState('');
   const [comparison, setComparison] = useState<any[]>([]); const [showComparison, setShowComparison] = useState(false);
   const validBudget = !budgetDraft || (/^\d+(\.\d{1,2})?$/.test(budgetDraft) && Number(budgetDraft) > 0 && Number(budgetDraft) <= Number.MAX_SAFE_INTEGER / 100);
+  const budgetShake = useShake(!validBudget);
   const toggleCompare = (vendor: any) => setComparison(items => items.some(item => item.id === vendor.id) ? items.filter(item => item.id !== vendor.id) : items.length < 3 ? [...items, vendor] : items);
   const [city, setCity] = useState(''); const [category, setCategory] = useState(''); const [query, setQuery] = useState(''); const [sort, setSort] = useState('recommended');
-  const [showBudget, setShowBudget] = useState(false);
+  const [showBudget, setShowBudget] = useState(false); const [moreOpen, setMoreOpen] = useState(false);
+  const recentVendors = useRecent('vendors'); const recentSearch = useRecent('search');
+  const open = (id: number, name?: string) => { if (name) recentVendors.add(`${id}|${name}`); if (query.trim()) recentSearch.add(query); openVendor(id); };
   const [listed, setListed] = useState<string[]>([]); const [asked, setAsked] = useState('');
   useEffect(() => { api<any[]>('/vendors/cities').then(r => setListed((r || []).map(x => x.city))).catch(() => {}); }, []);
   const askCity = () => { api('/city-interest', 'POST', { city, category }).then(() => setAsked(city)).catch(() => {}); };
@@ -124,37 +130,45 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
         <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, letterSpacing: 2.5, color: '#E8C877', fontWeight: '700', textTransform: 'uppercase' }}>{left != null ? `${left} ${tr('days to your wedding')}` : city || tr('Across India')}</Text>
         <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={{ fontFamily: F.display, color: '#FFFEFC', fontSize: 30, lineHeight: 36, marginTop: 8 }}>{tr('Find your wedding team')}</Text>
         <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.82)', fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 18 }}>{tr('Venues, caterers, photographers, mehndi artists and pandits.')}</Text>
-        <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" />
+        <Input icon="search" accessibilityLabel={tr('Search vendors')} placeholder={tr('Search vendors')} value={query} onChangeText={setQuery} returnKeyType="search" onSubmitEditing={() => recentSearch.add(query)} />
         <Text maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,254,252,0.8)', fontSize: 13, marginTop: -4 }}>{summary ? `${summary.total} ${city ? `${tr('vendors in')} ${city}` : tr('vendors listed')}${summary.on_platform > 0 ? ` · ${summary.on_platform} ${tr('on Shaadi OS')}` : ''}` : ' '}</Text>
       </View>; })()}
+      {!query && recentSearch.items.length > 0 && <View style={{ marginBottom: SP.block }}><View style={s.row}><M>{tr('Recent searches')}</M><Btn small kind="ghost" title={tr('Clear history')} onPress={() => { recentSearch.clear(); recentVendors.clear(); }} /></View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{recentSearch.items.map(q => <Chip key={q} icon="search" label={q} onPress={() => setQuery(q)} />)}</View></View>}
+      {recentVendors.items.length > 0 && <View style={{ marginBottom: SP.block }}><M style={{ marginBottom: SP.near }}>{tr('Recently viewed')}</M>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20 }}>{recentVendors.items.map(v => { const i = v.indexOf('|'); const vid = Number(v.slice(0, i)); const name = v.slice(i + 1); return Number.isFinite(vid) ? <Chip key={v} icon="store" label={name} onPress={() => open(vid, name)} /> : null; })}</ScrollView></View>}
+      {((prefs?.services?.length || 0) > 0 || (prefs?.city && city !== prefs.city)) && <View style={{ marginBottom: SP.block }}><M style={{ marginBottom: SP.near }}>{tr('Your choices from setup')}</M>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{prefs?.city && city !== prefs.city ? <Chip icon="pin" label={prefs.city} onPress={() => setCity(prefs.city!)} /> : null}{(prefs?.services || []).filter(k => CATEGORIES.some(([c]) => c === k)).map(k => <Chip key={k} label={categoryLabel(k)} on={category === k} onPress={() => setCategory(category === k ? '' : k)} />)}</View></View>}
+      <Hint id="discover-compare" text={tr('Tap Compare on two vendors to see them side by side.')} />
       <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, color: C.ink, fontSize: 20, marginBottom: 10 }}>{tr('Browse by service')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-        {CATEGORIES.filter(([k]) => CAT_ICON[k]).map(([k, label]) => { const on = category === k; return <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={tr(label)} onPress={() => setCategory(on ? '' : k)} style={{ width: 84, alignItems: 'center' }}>
+        {CATEGORIES.filter(([k]) => CAT_ICON[k]).map(([k, label]) => { const on = category === k; return <PressScale key={k} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={tr(label)} onPress={() => setCategory(on ? '' : k)} style={{ width: 84, alignItems: 'center' }}>
           <View style={{ width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.primary : C.goldSoft, borderWidth: on ? 0 : 1, borderColor: C.line }}><Icon name={CAT_ICON[k]} size={28} color={on ? '#FFFEFC' : C.primary} strokeWidth={1.6} /></View>
           <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={{ marginTop: 8, fontSize: 13, fontWeight: on ? '700' : '500', color: on ? C.primary : C.ink }}>{tr(label)}</Text>
           {summary?.by_category ? <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 12, color: C.mute }}>{summary.by_category[k] || 0}</Text> : null}
-        </Pressable>; })}
+        </PressScale>; })}
       </ScrollView>
       <M style={{ marginTop: 20, marginBottom: 8 }}>{tr('Wedding city')}</M>
       <CityPicker value={city} onChange={setCity} allowAll />
       {comparison.length > 0 && <Card><View style={s.row}><H style={{ fontSize: 20 }}>{tr('Compare vendors')} ({comparison.length}/3)</H><Btn small kind="ghost" title={tr('Clear')} onPress={() => { setComparison([]); setShowComparison(false); }} /></View>
         <M>{tr('Select up to three vendors to compare prices, location and ratings.')}</M><Btn kind="quiet" title={showComparison ? tr('Hide comparison') : tr('Show comparison')} onPress={() => setShowComparison(!showComparison)} />
-        {showComparison && <ScrollView horizontal contentContainerStyle={{ gap: 12 }}>{comparison.map(item => <View key={item.id} style={{ width: 220, padding: 16, backgroundColor: C.bg, borderRadius: 12 }}><H style={{ fontSize: 20 }}>{item.name}</H><M>{categoryLabel(item.category)} · {item.city}</M><H style={{ color: C.primary }}>{item.start_paise ? inr(item.start_paise) : tr('Price not listed')}</H><M>{item.rating ? `${item.rating}/5 · ${item.reviews} ${tr('reviews')}` : tr('No reviews yet')}</M>{item.verified ? <Tag tone="ok" label={tr('Verified')} /> : null}<Btn small title={tr('View profile')} onPress={() => openVendor(item.id)} /><Btn small kind="ghost" title={tr('Remove')} onPress={() => toggleCompare(item)} /></View>)}</ScrollView>}
+        <Collapse open={showComparison}><ScrollView horizontal contentContainerStyle={{ gap: 12 }}>{comparison.map(item => <View key={item.id} style={{ width: 220, padding: 16, backgroundColor: C.bg, borderRadius: 12 }}><H style={{ fontSize: 20 }}>{item.name}</H><M>{categoryLabel(item.category)} · {item.city}</M><H style={{ color: C.primary }}>{item.start_paise ? inr(item.start_paise) : tr('Price not listed')}</H><M>{item.rating ? `${item.rating}/5 · ${item.reviews} ${tr('reviews')}` : tr('No reviews yet')}</M>{item.verified ? <Tag tone="ok" label={tr('Verified')} /> : null}<Btn small title={tr('View profile')} onPress={() => open(item.id, item.name)} /><Btn small kind="ghost" title={tr('Remove')} onPress={() => toggleCompare(item)} /></View>)}</ScrollView></Collapse>
       </Card>}
       <SectionTitle title={filtered ? 'Matching vendors' : 'Vendor directory'} detail={vendors ? `${results.length} ${tr(results.length === 1 ? 'vendor' : 'vendors')}` : undefined} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, marginBottom: 8, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+      <MoreToggle open={moreOpen} onPress={() => setMoreOpen(!moreOpen)} count={weddingDate ? 5 : 4} />
+      <Collapse open={moreOpen}><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, marginBottom: SP.near, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
         {weddingDate ? <Chip icon="calendar" label={`${tr('Free on')} ${dateIN(weddingDate)}`} on={freeOn} onPress={() => setFreeOn(!freeOn)} /> : null}
         <Chip icon="rupee" label={budget ? `${tr('Up to')} ${inr(Number(budget) * 100)}` : tr('Budget')} on={!!budget || showBudget} onPress={() => setShowBudget(!showBudget)} />
         <View style={{ width: 1, height: 26, backgroundColor: C.line, marginRight: 8, marginTop: 8 }} />
         {[['recommended', 'Recommended'], ['price', 'Price: low to high'], ['rating', 'Top rated']].map(([key, label]) => <Chip key={key} label={tr(label)} on={sort === key} onPress={() => setSort(key)} />)}
-      </ScrollView>
-      {showBudget && <Rise><Card style={{ padding: 16 }}>
+      </ScrollView></Collapse>
+      <Collapse open={moreOpen && showBudget}><Card style={{ padding: 16 }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>{BUDGET_PRESETS.map(r => <Chip key={r} label={`${tr('Up to')} ${inr(r * 100)}`} on={budget === String(r)} onPress={() => { setBudgetDraft(String(r)); setBudget(String(r)); setShowBudget(false); }} />)}</View>
-        <Input label={tr('Maximum starting price (₹)')} value={budgetDraft} onChangeText={setBudgetDraft} keyboardType="decimal-pad" placeholder={tr('Any budget')} returnKeyType="done" onSubmitEditing={() => { if (validBudget) { setBudget(budgetDraft); setShowBudget(false); } }} />
-        {!validBudget && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, marginBottom: 8 }}>{tr('Enter a valid budget amount.')}</Text>}
+        <Input label={tr('Maximum starting price (₹)')} value={budgetDraft} onChangeText={setBudgetDraft} keyboardType="decimal-pad" placeholder={tr('Any budget')} error={!validBudget ? tr('Enter a valid budget amount.') : undefined} returnKeyType="done" onSubmitEditing={() => { if (validBudget) { setBudget(budgetDraft); setShowBudget(false); } }} />
+        {!validBudget && <Animated.View style={budgetShake}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, marginBottom: 8 }}>{tr('Enter a valid budget amount.')}</Text></Animated.View>}
         <View style={{ flexDirection: 'row', gap: 12 }}><View style={{ flex: 1 }}><Btn small title={tr('Apply budget')} disabled={!validBudget} onPress={() => { setBudget(budgetDraft); setShowBudget(false); }} /></View>
           {!!budget && <View style={{ flex: 1 }}><Btn small kind="ghost" title={tr('Any budget')} onPress={() => { setBudget(''); setBudgetDraft(''); setShowBudget(false); }} /></View>}</View>
-      </Card></Rise>}
+      </Card></Collapse>
       {filtered && <View style={{ flexDirection: 'row', marginBottom: 8 }}><Btn small kind="quiet" icon="close" title={tr('Clear filters')} onPress={clearFilters} /></View>}
       {!!error && <Card><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, lineHeight: 21 }}>{error}</Text><Btn kind="quiet" title={tr('Try again')} onPress={() => setRefreshKey(k => k + 1)} /></Card>}
       {busy && !vendors && <Loading what={tr('vendors')} />}
@@ -162,6 +176,6 @@ export function Marketplace({ openVendor, onSignIn, preset, weddingDate }: { ope
     ListEmptyComponent={!busy && vendors && !error ? (city && !category && !query && !budget && !freeOn && listed.length > 0 && !listed.some(c => c.toLowerCase() === city.toLowerCase())
       ? <Empty icon="pin" title={`${tr('No vendors in')} ${city} ${tr('yet')}`} text={asked === city ? tr('Thanks. We will use this to decide where to add vendors next. The planner works in every city.') : tr('We are adding cities. Tell us you want vendors here and we will prioritise it. The planner works in every city.')} action={asked === city ? undefined : tr('Tell us you want vendors here')} onAction={askCity} />
       : <Empty icon="search" title={tr('No vendors match')} text={tr('Change your city or service to see more options.')} action={filtered ? tr('Clear filters') : undefined} onAction={clearFilters} />) : null}
-    renderItem={({ item, index }) => { const selected = comparison.some(v => v.id === item.id); return <Rise i={Math.min(index, 3)}><VendorCard vendor={item} onPress={() => openVendor(item.id)} compare={{ on: selected, disabled: !selected && comparison.length >= 3, onToggle: () => toggleCompare(item) }} /></Rise>; }} />;
+    renderItem={({ item, index }) => { const selected = comparison.some(v => v.id === item.id); return <Rise i={Math.min(index, 3)}><VendorCard vendor={item} onPress={() => open(item.id, item.name)} compare={{ on: selected, disabled: !selected && comparison.length >= 3, onToggle: () => toggleCompare(item) }} /></Rise>; }} />;
 }
 

@@ -1,14 +1,15 @@
 // One place per couple-vendor relationship: the list ("My vendors" for couples, "Clients" for vendors) and
 // a single screen that holds the quote, booking, instalments and chat, with the next step at the top.
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from './api';
 import { tr } from './i18n';
 import { ReportBox, BlockButton } from './safety';
-import { Bar, Btn, C, Card, Chip, ContactButtons, Empty, F, Input, Loading, M, Rise, SHOW_PAYMENTS, Tag, confirm, dateIN, err, inr, notify, s } from './ui';
+import { Bar, Btn, C, Card, Chip, ContactButtons, Empty, F, Input, Loading, M, Rise, SHOW_PAYMENTS, Tag, confirm, dateIN, err, inr, notify, s, useShake } from './ui';
 import { CAT_ICON, Icon } from './icons';
 import { categoryLabel } from './marketplace';
+import { Moment, SP, Stepper } from './ux';
 
 type Deal = any;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -81,25 +82,10 @@ export function DealsList({ navigation, vendor }: { navigation: any; vendor?: bo
       </Card></Rise>; }} />;
 }
 
-// Progress across the five stages of a vendor relationship.
-function StageTracker({ stage }: { stage: string }) {
-  const at = stageIndex(stage);
-  return <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 16 }}>
-    {STAGES.map((label, i) => <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-        <View style={{ flex: 1, height: 2, backgroundColor: i === 0 ? 'transparent' : i <= at ? C.primary : C.line }} />
-        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: i <= at ? C.primary : C.card, borderWidth: 2, borderColor: i <= at ? C.primary : C.line, alignItems: 'center', justifyContent: 'center' }}>{i < at || stage === 'completed' ? <Icon name="check" size={12} color="#fff" strokeWidth={2.4} /> : null}</View>
-        <View style={{ flex: 1, height: 2, backgroundColor: i === STAGES.length - 1 ? 'transparent' : i < at ? C.primary : C.line }} />
-      </View>
-      <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: i === at ? C.primary : C.mute, fontWeight: i === at ? '600' : '400', marginTop: 4 }}>{tr(label)}</Text>
-    </View>)}
-  </View>;
-}
-
 const SPLIT = [['Token advance', 20], ['One week before event', 50], ['After event', 30]] as const;
 // Several line items, with the instalment split shown before sending.
 function QuoteBuilder({ enquiryId, onSent, onCancel }: { enquiryId: number; onSent: () => void; onCancel: () => void }) {
-  const [items, setItems] = useState([{ label: '', amount: '' }]); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [items, setItems] = useState([{ label: '', amount: '' }]); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const errShake = useShake(error);
   const [packages, setPackages] = useState<any[]>([]);
   useEffect(() => { api<any>('/vendor/catalog').then(c => setPackages(c.packages || [])).catch(() => {}); }, []);
   const usePackage = (p: any) => { const row = { label: p.title, amount: String(p.price_paise / 100) }; const blank = items.findIndex(i => !i.label.trim() && !i.amount.trim()); setItems(blank >= 0 ? items.map((it, j) => j === blank ? row : it) : [...items, row]); setError(''); };
@@ -124,14 +110,16 @@ function QuoteBuilder({ enquiryId, onSent, onCancel }: { enquiryId: number; onSe
     <Pressable accessibilityRole="button" onPress={() => setItems([...items, { label: '', amount: '' }])} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40 }}><Icon name="plus" size={16} color={C.primary} /><Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontWeight: '500' }}>{tr('Add another item')}</Text></Pressable>
     <View style={[s.row, { borderTopWidth: 1, borderTopColor: C.line, paddingTop: 12, marginTop: 8 }]}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontWeight: '500' }}>{tr('Total')}</Text><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, color: C.primary }}>{inr(total)}</Text></View>
     {total > 0 ? <View style={{ marginTop: 8 }}>{SPLIT.map(([l, pct]) => <View key={l} style={s.row}><M>{tr(l)} · {pct}%</M><M>{inr(Math.round(total * pct / 100))}</M></View>)}</View> : null}
-    {error ? <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, marginTop: 8 }}>{error}</Text> : null}
+    {error ? <Animated.View style={errShake}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, marginTop: 8 }}>{error}</Text></Animated.View> : null}
     <Btn icon="send" title={busy ? tr('Sending…') : tr('Send quote')} disabled={busy} onPress={send} /><Btn kind="ghost" title={tr('Cancel')} onPress={onCancel} />
   </Card>;
 }
 
 // The whole relationship with one vendor (or one couple): next step, quote, booking and payments, then the conversation.
 export function DealScreen({ route, navigation }: any) {
-  const { id, vendor, alsoSent } = route.params;
+  const { id, vendor, alsoSent, justSent } = route.params;
+  const [moment, setMoment] = useState<{ title: string; detail: string } | null>(null); const clearMoment = useCallback(() => setMoment(null), []);
+  useEffect(() => { if (justSent) setMoment({ title: tr('Enquiry sent'), detail: tr('The vendor will reply here. You will see their quote as soon as it arrives.') }); }, [justSent]);
   const [deal, setDeal] = useState<Deal | null>(null); const [detail, setDetail] = useState<any>(null);
   const [msg, setMsg] = useState(''); const [quoting, setQuoting] = useState(false); const [rating, setRating] = useState(0); const [working, setWorking] = useState(false);
   const load = useCallback(async () => {
@@ -140,9 +128,9 @@ export function DealScreen({ route, navigation }: any) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useEffect(() => { const i = setInterval(load, 8000); return () => clearInterval(i); }, [load]);
   if (!deal || !detail) return <Loading what={tr('this vendor')} />;
-  const act = async (path: string, body?: any) => { if (working) return; setWorking(true); try { await api(path, 'POST', body); await load(); } catch (e) { err(e); } finally { setWorking(false); } };
+  const act = async (path: string, body?: any) => { if (working) return; setWorking(true); try { await api(path, 'POST', body); await load(); return true; } catch (e) { err(e); return false; } finally { setWorking(false); } };
   const send = async () => { if (!msg.trim()) return; try { await api(`/enquiries/${id}/messages`, 'POST', { body: msg.trim() }); setMsg(''); load(); } catch (e) { err(e); } };
-  const accept = async (q: any) => { if (await confirm(tr('Accept this quote?'), `${inr(q.total_paise)} · ${tr('paid in instalments, each held until you release it')}`, tr('Accept & book'))) act(`/quotes/${q.id}/accept`); };
+  const accept = async (q: any) => { if (await confirm(tr('Accept this quote?'), `${inr(q.total_paise)} · ${tr('paid in instalments, each held until you release it')}`, tr('Accept & book'))) { if (await act(`/quotes/${q.id}/accept`)) setMoment({ title: tr('Vendor booked'), detail: tr('You have taken a big step. Your vendor is now part of your wedding team.') }); } };
   const dispute = async () => { if (await confirm(tr('Raise a dispute?'), tr('Support will review this booking and any payment still held stays held until it is resolved.'), tr('Raise dispute'), true)) act(`/bookings/${deal.booking.id}/dispute`, { reason: 'Issue with service, needs review by support' }); };
   const invoice = () => api(`/bookings/${deal.booking.id}/invoice`).then((i: any) => notify(i.invoice_no, `${tr('Commission')} ${inr(i.commission_paise)} + GST ${inr(i.gst_paise)} = ${inr(i.total_paise)}\n${i.note}`)).catch(err);
   const quote = detail.quotes.find((q: any) => q.status === 'sent' || q.status === 'accepted');
@@ -152,8 +140,12 @@ export function DealScreen({ route, navigation }: any) {
   const step = nextStep(deal, !!vendor);
   const canReview = !vendor && deal.booking && !deal.booking.reviewed && ms.some(m => m.status !== 'pending');
 
-  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90} style={{ flex: 1, backgroundColor: C.bg }}>
+  const at = Math.min(stageIndex(deal.stage), 2);
+  return <View style={{ flex: 1 }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90} style={{ flex: 1, backgroundColor: C.bg }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24, width: '100%', maxWidth: 700, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={C.primary} />}>
+      <View style={{ marginBottom: SP.block }}><Stepper steps={[tr('Enquired'), tr('Quoted'), tr('Booked')]} current={at} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: SP.near }}>{[tr('Enquired'), tr('Quoted'), tr('Booked')].map((l, i) => <M key={l} style={{ fontSize: 12, color: i === at ? C.primary : C.mute, fontWeight: i === at ? '600' : '400' }}>{l}</M>)}</View>
+        <M style={{ marginTop: SP.tight }}>{tr(STAGE_TAG[deal.stage]?.label || 'Enquiry sent')}</M></View>
       <Card>
         <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{deal.other_name}</Text>
         <M>{vendor ? `${deal.guests} ${tr('guests')}` : categoryLabel(deal.category)} · {dateIN(deal.event_date)} · {tr('budget')} {inr(deal.budget_paise)}</M>
@@ -163,8 +155,7 @@ export function DealScreen({ route, navigation }: any) {
           <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, lineHeight: 22, marginTop: 2 }}>{detail.enquiry.note}</Text>
         </View> : null}
         {deal.contact_phone ? <View style={{ marginTop: 12 }}><M>{tr(vendor ? 'Booked, so you can now reach them directly' : 'Booked, so you can now reach the vendor directly')}</M><ContactButtons phone={deal.contact_phone} whatsapp={deal.contact_phone} /></View> : null}
-        <StageTracker stage={deal.stage} />
-      </Card>
+        </Card>
 
       {alsoSent?.length ? <Card style={{ padding: 16 }}><M>{tr('The same enquiry also went to')} {alsoSent.join(', ')}. {tr('Their replies appear in My vendors.')}</M></Card> : null}
       {step ? <Card style={{ backgroundColor: step.urgent ? C.tint : C.card, borderColor: step.urgent ? C.primary : C.line }}>
@@ -221,7 +212,9 @@ export function DealScreen({ route, navigation }: any) {
       <Pressable accessibilityRole="button" accessibilityLabel={tr('Send')} onPress={send} style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, marginLeft: 8, backgroundColor: msg.trim() ? C.primary : C.chipBg, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
         <Icon name="send" size={20} color={msg.trim() ? '#fff' : C.mute} /></Pressable>
     </View>
-  </KeyboardAvoidingView>;
+  </KeyboardAvoidingView>
+  {moment ? <Moment title={moment.title} detail={moment.detail} onDone={clearMoment} /> : null}
+  </View>;
 }
 
 // Side by side: every live quote for one service, cheapest first, each with its items, rating and instalments.

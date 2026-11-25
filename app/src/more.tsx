@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View, Linking, Share, Pressable } from 'react-native';
 import { api, getBase } from './api';
 import { Btn, Card, Chip, H, Input, M, C, F, inr, err, s, Empty, Rise, Tag, confirm, dateIN, DateField, todayISO } from './ui';
+import { Collapse } from './motion';
 import { Icon } from './icons';
 import { tr } from './i18n';
 import { categoryLabel } from './marketplace';
@@ -132,11 +133,12 @@ function DisputeRow({ d, done }: { d: any; done: () => void }) {
     <View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink, fontWeight: '500' }}>{d.vendor_name || tr('Vendor')} · {inr(d.total_paise)}</Text><Tag tone="warn" label={d.raised_by_role === 'couple' ? tr('Raised by couple') : tr('Raised by vendor')} /></View>
     <M style={{ marginTop: 4 }}>{d.reason}</M>
     {d.held_paise > 0 ? <M style={{ marginTop: 2 }}>{tr('Held')}: {inr(d.held_paise)}</M> : null}
-    {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : <>
+    {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : null}
+    <Collapse open={open}><>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>{OUTCOMES.map(([k, l]) => <Chip key={k} label={tr(l)} on={outcome === k} onPress={() => setOutcome(k)} />)}</ScrollView>
       <Input label={tr('Resolution note')} value={note} onChangeText={setNote} multiline />
       <Btn small title={tr('Save resolution')} disabled={busy || note.trim().length < 3} onPress={resolve} />
-      <M style={{ marginTop: 6 }}>{tr('No money is moved here. Settle any payout with your CA or licensed payment partner.')}</M></>}
+      <M style={{ marginTop: 6 }}>{tr('No money is moved here. Settle any payout with your CA or licensed payment partner.')}</M></></Collapse>
   </View>);
 }
 
@@ -148,9 +150,10 @@ function InboxRow({ title, detail, actions, done }: { title: string; detail: str
   };
   return (<View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line }}>
     <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontWeight: '500' }}>{title}</Text><M style={{ marginTop: 2 }}>{detail}</M>
-    {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : <>
+    {!open ? <Btn small kind="quiet" title={tr('Resolve')} onPress={() => setOpen(true)} /> : null}
+    <Collapse open={open}><>
       <Input label={tr('Note')} value={note} onChangeText={setNote} multiline />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{actions.map(a => <Btn key={a.label} small kind={a.danger ? 'ghost' : 'primary'} title={a.label} disabled={busy || note.trim().length < 3} onPress={() => run(a)} />)}</View></>}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{actions.map(a => <Btn key={a.label} small kind={a.danger ? 'ghost' : 'primary'} title={a.label} disabled={busy || note.trim().length < 3} onPress={() => run(a)} />)}</View></></Collapse>
   </View>);
 }
 
@@ -158,7 +161,7 @@ function VerifyRow({ v, done }: { v: any; done: () => void }) {
   const [basis, setBasis] = useState(''); const [open, setOpen] = useState(false);
   const verify = async () => { try { await api(`/admin/vendors/${v.id}/verify`, 'POST', { basis: basis.trim() }); done(); } catch (e) { err(e); } };
   return (<View style={{ marginTop: 8 }}><View style={s.row}><Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.ink }}>{v.name}</Text>{!open ? <Btn small icon="seal" title={tr('Verify')} onPress={() => setOpen(true)} /> : null}</View>
-    {open ? <><Input label={tr('What did you check? (GST certificate, call, site visit)')} value={basis} onChangeText={setBasis} multiline /><Btn small title={tr('Confirm verification')} disabled={basis.trim().length < 3} onPress={verify} /></> : null}</View>);
+    <Collapse open={open}><><Input label={tr('What did you check? (GST certificate, call, site visit)')} value={basis} onChangeText={setBasis} multiline /><Btn small title={tr('Confirm verification')} disabled={basis.trim().length < 3} onPress={verify} /></></Collapse></View>);
 }
 
 export function Admin() {

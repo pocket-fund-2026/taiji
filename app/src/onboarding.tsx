@@ -5,7 +5,8 @@ import { Animated, Platform, Pressable, ScrollView, Text, View } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tr } from './i18n';
 import { Icon, IconName, Logo, CAT_ICON } from './icons';
-import { C, F, useReducedMotion } from './ui';
+import { C, F, MOTION, useReducedMotion } from './ui';
+import { Slide, Tooltip } from './motion';
 import { Prefs, markOnboarded, setPrefs } from './prefs';
 import { CityPicker } from './citypicker';
 import { api } from './api';
@@ -49,10 +50,11 @@ function Tile({ label, detail, icon, on, onPress, multi }: { label: string; deta
 
 function Progress({ value }: { value: number }) {
   const { reduced } = useReducedMotion();
-  const w = useRef(new Animated.Value(value)).current;
-  useEffect(() => { if (reduced) w.setValue(value); else Animated.timing(w, { toValue: value, duration: 320, useNativeDriver: false }).start(); }, [value, reduced, w]);
-  return <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }} style={{ flex: 1, height: 16, borderRadius: 9999, backgroundColor: DUO.swan, overflow: 'hidden' }}>
-    <Animated.View style={{ height: 16, borderRadius: 9999, backgroundColor: DUO.green, width: w.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }}>
+  const [tw, setTw] = useState(0); const w = useRef(new Animated.Value(value)).current;
+  useEffect(() => { if (reduced) { w.stopAnimation(); w.setValue(value); return; } const a = Animated.timing(w, { toValue: value, duration: MOTION.progress, easing: MOTION.easing, useNativeDriver: ND }); a.start(); return () => a.stop(); }, [value, reduced, w]);
+  // Full-width fill slid with translateX (transform, native driver) instead of animating width.
+  return <View onLayout={e => setTw(e.nativeEvent.layout.width)} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }} style={{ flex: 1, height: 16, borderRadius: 9999, backgroundColor: DUO.swan, overflow: 'hidden' }}>
+    <Animated.View style={{ height: 16, width: '100%', borderRadius: 9999, backgroundColor: DUO.green, transform: [{ translateX: w.interpolate({ inputRange: [0, 1], outputRange: [-tw, 0] }) }] }}>
       <View style={{ position: 'absolute', left: 8, right: 8, top: 4, height: 4, borderRadius: 9999, backgroundColor: 'rgba(243,232,209,0.4)' }} />
     </Animated.View>
   </View>;
@@ -101,7 +103,7 @@ const TIMELINES: [string, string, string][] = [['soon', 'Within 3 months', 'We w
 // Steps: 0 welcome, 1 role, 2 city, 3 services, 4 timing, 5 done. Vendors skip 2 to 4.
 export default function Onboarding({ onDone }: { onDone: (to: 'home' | 'signin', prefs: Prefs) => void }) {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(0); const [dir, setDir] = useState<1 | -1 | 0>(0);
   const [role, setRole] = useState<Prefs['role']>(); const [city, setCity] = useState(''); const [services, setServices] = useState<string[]>([]); const [timeline, setTimeline] = useState('');
   const [listed, setListed] = useState<string[]>([]);
   useEffect(() => { api('/vendors/cities').then((r: any) => setListed((r || []).map((x: any) => x.city))).catch(() => {}); }, []);
@@ -109,8 +111,8 @@ export default function Onboarding({ onDone }: { onDone: (to: 'home' | 'signin',
   const total = vendor ? 3 : 6;
   const pos = vendor && step === 5 ? 2 : step;
   const finish = async (to: 'home' | 'signin') => { const p: Prefs = { role, ...(vendor ? {} : { city, services, timeline }) }; await setPrefs(p); await markOnboarded(); onDone(to, p); };
-  const next = () => setStep(vendor && step === 1 ? 5 : step + 1);
-  const back = () => setStep(vendor && step === 5 ? 1 : Math.max(0, step - 1));
+  const next = () => { setDir(1); setStep(vendor && step === 1 ? 5 : step + 1); };
+  const back = () => { setDir(-1); setStep(vendor && step === 5 ? 1 : Math.max(0, step - 1)); };
   const canNext = step === 1 ? !!role : step === 2 ? !!city : step === 4 ? !!timeline : true;
   const toggle = (k: string) => setServices(s => s.includes(k) ? s.filter(x => x !== k) : [...s, k]);
 
@@ -121,10 +123,11 @@ export default function Onboarding({ onDone }: { onDone: (to: 'home' | 'signin',
 
   return <View style={{ flex: 1, backgroundColor: DUO.bg, paddingTop: step === 0 ? 0 : insets.top }}>
     {step > 0 && step < 5 ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 14 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={tr('Back')} onPress={back} hitSlop={12} style={{ minWidth: 32, minHeight: 32, justifyContent: 'center' }}><Icon name="close" size={26} color={DUO.hare} strokeWidth={2.5} /></Pressable>
+      <Tooltip label={tr('Back')}><Pressable accessibilityRole="button" accessibilityLabel={tr('Back')} onPress={back} hitSlop={12} style={{ minWidth: 32, minHeight: 32, justifyContent: 'center' }}><Icon name="close" size={26} color={DUO.hare} strokeWidth={2.5} /></Pressable></Tooltip>
       <Progress value={pos / (total - 1)} />
     </View> : <View style={{ height: 14 }} />}
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: 20, paddingTop: 8, width: '100%', maxWidth: 520, alignSelf: 'center' }} showsVerticalScrollIndicator={false}>
+      <Slide key={step} dir={dir} style={{ flexGrow: 1 }}>
       {step === 0 && <Welcome top={insets.top} />}
       {step === 1 && <>{heading(tr('Who is this for?'))}<View style={{ gap: 12 }}>
         <Tile icon="family" on={role === 'couple'} onPress={() => setRole('couple')} label={tr('I’m planning a wedding')} detail={tr('For the couple and family')} />
@@ -144,6 +147,7 @@ export default function Onboarding({ onDone }: { onDone: (to: 'home' | 'signin',
         <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 17, lineHeight: 25, color: DUO.wolf, textAlign: 'center', marginTop: 10 }}>{vendor ? tr('Create a vendor account with your mobile number and start receiving enquiries.') : `${tr('Showing you vendors in')} ${city || tr('your city')}${services.length ? ` ${tr('for')} ${services.slice(0, 2).map(k => tr(SERVICES.find(s => s[0] === k)?.[1] || k).toLowerCase()).join(' and ')}${services.length > 2 ? ` ${tr('and more')}` : ''}` : ''}.`}</Text>
         {!vendor && <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 18 }}>{[city, ...services.map(k => tr(SERVICES.find(s => s[0] === k)?.[1] || k))].filter(Boolean).map(c => <View key={c} style={{ borderRadius: 9999, borderWidth: 2, borderColor: DUO.swan, paddingHorizontal: 14, paddingVertical: 6 }}><Text maxFontSizeMultiplier={1.3} style={{ fontSize: 14, fontWeight: HEAVY, color: DUO.wolf }}>{c}</Text></View>)}</View>}
       </View>}
+      </Slide>
     </ScrollView>
     <View style={{ padding: 20, paddingBottom: insets.bottom + 16, borderTopWidth: step > 0 && step < 5 ? 2 : 0, borderTopColor: DUO.swan, width: '100%', maxWidth: 520, alignSelf: 'center' }}>
       {step === 0 && <><DuoBtn title={tr('Get started')} onPress={next} /><View style={{ height: 8 }} /><DuoBtn kind="secondary" title={tr('I already have an account')} onPress={() => finish('signin')} /></>}

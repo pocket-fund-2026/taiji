@@ -47,8 +47,25 @@ export const dateIN = (iso?: string) => { if (!iso) return ''; const d = new Dat
 // Indian number format: ₹4.5 L, ₹1.2 Cr
 export const inr = (paise: number) => { const r = (paise || 0) / 100; if (r >= 1e7) return `₹${+(r / 1e7).toFixed(2)} Cr`; if (r >= 1e5) return `₹${+(r / 1e5).toFixed(2)} L`; return '₹' + r.toLocaleString('en-IN'); };
 
+// Motion constants. Press feedback and entrances never scale from 0: 0.97 reads as "settling", 0 reads as "popping in".
+export const PRESS_SCALE = 0.97; export const ENTER_SCALE = 0.97;
+
+// SHAKE ON ERROR: a short horizontal shake (transform only, native driver) each time `trigger` becomes a new truthy value.
+// Reduced motion skips the shake; the visible error text and its alert role still carry the message.
+export function useShake(trigger: unknown) {
+  const { reduced } = useReducedMotion();
+  const x = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!trigger || reduced) return;
+    const step = (to: number) => Animated.timing(x, { toValue: to, duration: 55, easing: Easing.linear, useNativeDriver: ND });
+    const run = Animated.sequence([step(-8), step(8), step(-5), step(5), step(0)]); run.start();
+    return () => { run.stop(); x.setValue(0); };
+  }, [trigger, reduced, x]);
+  return { transform: [{ translateX: x }] };
+}
+
 // Press feedback: a small spring scale so a tap visibly registers on touch screens (no hover there).
-function usePress(to = 0.97) {
+function usePress(to = PRESS_SCALE) {
   const { reduced } = useReducedMotion();
   const v = useRef(new Animated.Value(1)).current;
   useEffect(() => { if (reduced) { v.stopAnimation(); v.setValue(1); } return () => v.stopAnimation(); }, [reduced, v]);
@@ -70,7 +87,7 @@ export function Rise({ i = 0, children, style }: { i?: number; children: React.R
     const animation = Animated.timing(v, { toValue: 1, duration: MOTION.reveal, delay: Math.min(i, 5) * 40, easing: MOTION.easing, useNativeDriver: ND });
     animation.start(); return () => { animation.stop(); v.setValue(1); };
   }, [ready, reduced, i, v]);
-  return <Animated.View style={[style, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] }]}>{children}</Animated.View>;
+  return <Animated.View style={[style, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }, { scale: v.interpolate({ inputRange: [0, 1], outputRange: [ENTER_SCALE, 1] }) }] }]}>{children}</Animated.View>;
 }
 
 type BtnKind = 'primary' | 'ghost' | 'ok' | 'quiet';
@@ -85,15 +102,15 @@ export const Btn = ({ title, onPress, kind = 'primary', disabled, icon, small }:
       </AnimatedPressable>);
 };
 
-export const Input = ({ icon, prefix, ...p }: TextInputProps & { label?: string; icon?: IconName; prefix?: string }) => {
-  const [focus, setFocus] = useState(false);
+export const Input = ({ icon, prefix, error, ...p }: TextInputProps & { label?: string; icon?: IconName; prefix?: string; error?: string }) => {
+  const [focus, setFocus] = useState(false); const shake = useShake(error);
   // The leading icon sits over the field; left padding is shifted 1 unit on focus to offset the thicker border.
   return (<View style={{ marginBottom: 12 }}>{p.label ? <Text maxFontSizeMultiplier={1.3} style={s.label}>{p.label}</Text> : null}
-    <View>
+    <Animated.View style={shake}>
       <TextInput maxFontSizeMultiplier={1.3} accessibilityLabel={p.label || p.placeholder} placeholderTextColor={C.faint} {...p} onFocus={e => { setFocus(true); p.onFocus?.(e); }} onBlur={e => { setFocus(false); p.onBlur?.(e); }} style={[s.input, focus && { borderColor: C.primary, borderWidth: 2, paddingHorizontal: 14, paddingVertical: 12 }, icon && { paddingLeft: focus ? 42 : 43 }, prefix && { paddingLeft: focus ? 51 : 52 }, p.style]} />
       {prefix ? <View pointerEvents="none" style={{ position: 'absolute', left: 16, top: 0, bottom: 0, justifyContent: 'center' }}><Text maxFontSizeMultiplier={1.3} style={{ fontSize: 15, color: C.ink }}>{prefix}</Text></View> : null}
       {icon ? <View pointerEvents="none" style={{ position: 'absolute', left: 16, top: 0, bottom: 0, justifyContent: 'center' }}><Icon name={icon} size={19} color={focus ? C.primary : C.mute} /></View> : null}
-    </View></View>);
+    </Animated.View></View>);
 };
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -206,10 +223,12 @@ export const Loading = ({ what }: { what: string }) => <View accessibilityRole="
 export const Bar = ({ pct, color = C.primary }: { pct: number; color?: string }) => {
   const { reduced } = useReducedMotion();
   const value = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
+  const [w, setW] = useState(0);
   const v = useRef(new Animated.Value(value)).current;
-  useEffect(() => { if (reduced) { v.stopAnimation(); v.setValue(value); return; } const animation = Animated.timing(v, { toValue: value, duration: MOTION.progress, easing: MOTION.easing, useNativeDriver: false }); animation.start(); return () => animation.stop(); }, [value, reduced, v]);
-  return (<View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(value) }} style={{ height: 5, borderRadius: 3, backgroundColor: C.chipBg, overflow: 'hidden' }}>
-    <Animated.View style={{ height: '100%', borderRadius: 3, backgroundColor: color, width: v.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }} /></View>);
+  useEffect(() => { if (reduced) { v.stopAnimation(); v.setValue(value); return; } const animation = Animated.timing(v, { toValue: value, duration: MOTION.progress, easing: MOTION.easing, useNativeDriver: ND }); animation.start(); return () => animation.stop(); }, [value, reduced, v]);
+  // Full-width fill slid with translateX: transform runs off the layout thread; animating width forces layout every frame.
+  return (<View onLayout={e => setW(e.nativeEvent.layout.width)} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(value) }} style={{ height: 5, borderRadius: 3, backgroundColor: C.chipBg, overflow: 'hidden' }}>
+    <Animated.View style={{ height: '100%', width: '100%', borderRadius: 3, backgroundColor: color, transform: [{ translateX: v.interpolate({ inputRange: [0, 100], outputRange: [-w, 0] }) }] }} /></View>);
 };
 
 // Checkbox pops on toggle to confirm the tap landed.

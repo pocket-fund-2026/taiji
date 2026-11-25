@@ -2,11 +2,12 @@ import { Overview, TaskManager, BudgetManager, WeddingSettings } from './planner
 import { tr } from './i18n';
 import { ReportBox, LegalLink } from './safety';
 import { Events, Family, ShortlistTab, InviteTab } from './more';
-import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { FlatList, ScrollView, Text, View, useWindowDimensions, RefreshControl, Linking, KeyboardAvoidingView, Platform, Pressable, Share } from 'react-native';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Animated, FlatList, ScrollView, Text, View, useWindowDimensions, RefreshControl, Linking, KeyboardAvoidingView, Platform, Pressable, Share } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api, getBase } from './api';
-import { Btn, Card, Chip, H, Input, M, C, F, inr, err, s, Empty, Rise, Tag, Stars, Bar, Check, Loading, confirm, notify, dateIN, DateField, todayISO, GuestCtx, ContactButtons } from './ui';
+import { Btn, Card, Chip, H, Input, M, C, F, inr, err, s, Empty, Rise, Tag, Stars, Bar, Check, Loading, confirm, notify, dateIN, DateField, todayISO, GuestCtx, ContactButtons, useShake, useReducedMotion, PRESS_SCALE } from './ui';
+import { Collapse, Slide, Tooltip } from './motion';
 import { Icon, CAT_ICON, IconName } from './icons';
 import { Marketplace } from './marketplace';
 import { FloralArch, VendorCover } from './visuals';
@@ -15,7 +16,15 @@ import { Gifts, RunSheet, Stays } from './hospitality';
 import { DayContacts, Documents, Seating, Shopping } from './organiser';
 import { ChooseVendor, GiftsToGive, Guests, Ideas, Menu, Muhurat, Practice, Transport } from './traditions';
 import { useT } from './i18n';
+import { Hint, MoreToggle, SP } from './ux';
+import { getPrefs } from './prefs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// Press feedback for bare Pressables: a small spring scale to PRESS_SCALE (transform, native driver); skipped under reduced motion.
+function PressScale({ children, style }: { children: (h: { onPressIn: () => void; onPressOut: () => void }) => React.ReactNode; style?: any }) {
+  const { reduced } = useReducedMotion(); const v = useRef(new Animated.Value(1)).current;
+  const go = (n: number) => { if (reduced) return; Animated.spring(v, { toValue: n, useNativeDriver: Platform.OS !== 'web', speed: 40, bounciness: 0 }).start(); };
+  return <Animated.View style={[style, { transform: [{ scale: v }] }]}>{children({ onPressIn: () => go(PRESS_SCALE), onPressOut: () => go(1) })}</Animated.View>;
+}
 export const useLoad = <T,>(path: string, init: T) => {
   const [d, setD] = useState<T>(init); const [busy, setBusy] = useState(false);
   const load = useCallback(async () => { setBusy(true); try { setD(await api(path)); } catch (e) { err(e); } finally { setBusy(false); } }, [path]);
@@ -82,9 +91,9 @@ export function VendorScreen({ route, navigation }: any) {
     </ScrollView>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 10), backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line }}>
       <View><M style={{ fontSize: 12 }}>{tr('Starting price')}</M><Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: v.start_paise ? 20 : 15, color: v.start_paise ? C.primary : C.mute }}>{v.start_paise ? inr(v.start_paise) : tr('Not listed')}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={saved ? tr('Shortlisted') : tr('Shortlist')} accessibilityState={{ selected: saved, disabled: saved }} disabled={saved} onPress={shortlist}
+      <Tooltip label={saved ? tr('Shortlisted') : tr('Shortlist')}><Pressable accessibilityRole="button" accessibilityLabel={saved ? tr('Shortlisted') : tr('Shortlist')} accessibilityState={{ selected: saved, disabled: saved }} disabled={saved} onPress={shortlist}
         style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 12, borderWidth: 1.3, borderColor: C.primary, backgroundColor: saved ? C.tint : 'transparent', alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.75 : 1 })}>
-        <Icon name={saved ? 'heartFill' : 'heart'} size={20} color={C.primary} /></Pressable>
+        <Icon name={saved ? 'heartFill' : 'heart'} size={20} color={C.primary} /></Pressable></Tooltip>
       <View style={{ flex: 1 }}>{v.unclaimed
         ? (v.website ? <Btn kind="ghost" title={tr('Visit website')} onPress={() => Linking.openURL(v.website).catch(err)} /> : null)
         : <Btn title={guest ? tr('Sign in to enquire') : t('book')} onPress={() => guest ? navigation.navigate('SignIn') : navigation.navigate('EnquiryForm', { vendor: v })} />}</View>
@@ -96,7 +105,7 @@ export function VendorScreen({ route, navigation }: any) {
 export function EnquiryForm({ route, navigation }: any) {
   const v = route.params.vendor;
   const [date, setDate] = useState(''); const [guests, setGuests] = useState(''); const [budget, setBudget] = useState(String(Math.round((v.start_paise || 0) / 100) || ''));
-  const [note, setNote] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [note, setNote] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const shakeErr = useShake(error);
   const [events, setEvents] = useState<any[]>([]); const [picked, setPicked] = useState<string[]>([]); const [prefilled, setPrefilled] = useState(false);
   // Other shortlisted vendors for the same service who can receive enquiries and haven't been asked yet.
   const [others, setOthers] = useState<any[]>([]); const [alsoTo, setAlsoTo] = useState<number[]>([]);
@@ -134,7 +143,7 @@ export function EnquiryForm({ route, navigation }: any) {
         await api('/enquiries', 'POST', { vendor_id: o.vendor_id, ...body }).then(() => sent.push(o.name)).catch(() => busyOnDate.push(o.name));
       }
       if (busyOnDate.length) notify(tr('Not sent to everyone'), `${tr('Busy on that date or not reachable')}: ${busyOnDate.join(', ')}`);
-      navigation.replace('Chat', { id: r.id, title: v.name, alsoSent: sent });
+      navigation.replace('Chat', { id: r.id, title: v.name, alsoSent: sent, justSent: true });
     } catch (e: any) { setError(e?.message || String(e)); } finally { setBusy(false); }
   };
   return (<ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 40, width: '100%', maxWidth: 640, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
@@ -152,7 +161,7 @@ export function EnquiryForm({ route, navigation }: any) {
         <Check on={on} /><View style={{ flex: 1 }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15 }}>{o.name}</Text><M>{o.city}{o.start_paise ? ` · ${tr('from')} ${inr(o.start_paise)}` : ''}</M></View></Pressable>; })}</> : null}
     <Input label={tr('Anything else?')} value={note} onChangeText={setNote} multiline placeholder={tr('Timings, style you like, questions for the vendor')} style={{ minHeight: 88, textAlignVertical: 'top' }} maxLength={400} />
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}><Icon name="lock" size={16} color={C.mute} /><M style={{ marginLeft: 8, flex: 1 }}>{tr('Your phone number stays hidden until you book.')}</M></View>
-    {error ? <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, marginBottom: 8 }}>{error}</Text> : null}
+    {error ? <Animated.View style={shakeErr}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, marginBottom: 8 }}>{error}</Text></Animated.View> : null}
     <Btn icon="send" title={busy ? tr('Sending…') : alsoTo.length ? `${tr('Send to')} ${alsoTo.length + 1} ${tr('vendors')}` : tr('Send enquiry')} disabled={busy} onPress={send} /></ScrollView>);
 }
 
@@ -173,17 +182,24 @@ const PLAN_TOOLS: [string, string, IconName, string][] = [
   ['invite', 'Wedding website', 'globe', 'A page to share with guests'], ['settings', 'Wedding details', 'ring', 'Names, date, city and budget'],
 ];
 // Every planning tool beyond the four main sections, as a grid of labelled tiles.
+// PARETO + OCCAM: six essentials cover most weddings; the long tail folds away. LAW OF SIMILARITY: every tile is identical in form.
+const TOP_TOOLS = ['muhurat', 'events', 'shortlist', 'run', 'seating', 'invite'];
 function ToolsHub({ open }: { open: (tab: string) => void }) {
-  return <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, width: '100%', maxWidth: 700, alignSelf: 'center' }}>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-      {PLAN_TOOLS.map(([k, n, icon, detail], i) => <Rise key={k} i={i} style={{ width: '47%', flexGrow: 1 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr(n)} onPress={() => open(k)} style={({ pressed }) => ({ minHeight: 120, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, opacity: pressed ? 0.8 : 1 })}>
+  const [more, setMore] = useState(false);
+  const top = TOP_TOOLS.map(k => PLAN_TOOLS.find(t => t[0] === k)!); const rest = PLAN_TOOLS.filter(t => !TOP_TOOLS.includes(t[0]));
+  const tileOf = ([k, n, icon, detail]: [string, string, IconName, string], i: number) => <Rise key={k} i={i} style={{ width: '47%', flexGrow: 1 }}>
+        <PressScale>{ph => <Pressable {...ph} accessibilityRole="button" accessibilityLabel={tr(n)} onPress={() => open(k)} style={({ pressed }) => ({ minHeight: 120, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, opacity: pressed ? 0.8 : 1 })}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={22} color={C.primary} /></View>
           <Text maxFontSizeMultiplier={1.3} style={{ color: C.ink, fontSize: 15, fontWeight: '500', marginTop: 12 }}>{tr(n)}</Text>
           <M style={{ marginTop: 2 }}>{tr(detail)}</M>
-        </Pressable>
-      </Rise>)}
+        </Pressable>}</PressScale>
+      </Rise>;
+  return <ScrollView contentContainerStyle={{ padding: SP.block, paddingBottom: 32, width: '100%', maxWidth: 700, alignSelf: 'center' }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SP.group }}>
+      {top.map(tileOf)}
     </View>
+    <Collapse open={more}><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SP.group, marginTop: SP.group }}>{rest.map((t, i) => tileOf(t, i))}</View></Collapse>
+    <MoreToggle open={more} onPress={() => setMore(m => !m)} count={rest.length} />
   </ScrollView>;
 }
 const PLAN_MAIN = [['overview', 'Overview', 'partnership'], ['checklist', 'Checklist', 'checklist'], ['budget', 'Budget', 'wallet'], ['guests', 'Guests', 'family']] as const;
@@ -192,34 +208,41 @@ export function Plan(props: any) {
   return <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: C.bg }}><PlanBody {...props} /></View>;
 }
 function PlanBody({ navigation: nav, route }: any) {
-  const [me, reload] = useLoad<any>('/me', null); const [tab, setTab] = useState('overview'); const narrow = useWindowDimensions().width < 360;
+  const [me, reload] = useLoad<any>('/me', null); const [tab, setTab] = useState('overview'); const prevTab = useRef({ tab: 'overview', dir: 1 as 1 | -1 }); const narrow = useWindowDimensions().width < 360;
   // Other screens (Profile) can open a specific section of the plan.
   useEffect(() => { if (route?.params?.tab) setTab(route.params.tab); }, [route?.params?.tab, route?.params?.at]); 
   if (!me) return <Loading what={tr('your wedding')} />;
   if (!me.wedding) return <Setup onDone={reload} name={me.user?.name} />;
   const tool = PLAN_TOOLS.find(t => t[0] === tab);
+  // DIRECTIONAL SLIDES: later in [overview, checklist, budget, guests, tools/any tool] enters from the right, earlier from the left.
+  const order = (k: string) => { const n = ['overview', 'checklist', 'budget', 'guests'].indexOf(k); return n < 0 ? 4 : n; };
+  if (prevTab.current.tab !== tab) { const d = order(tab) - order(prevTab.current.tab); prevTab.current = { tab, dir: d < 0 ? -1 : 1 }; }
+  const dir = prevTab.current.dir;
   return (<View style={{ flex: 1, backgroundColor: C.bg }}>
     <View style={{ paddingHorizontal: 16, paddingTop: 12, maxWidth: 700, width: '100%', alignSelf: 'center' }}>
       <Text maxFontSizeMultiplier={1.2} style={{ fontFamily: F.display, fontSize: 24, color: C.ink }} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{me.wedding.title}</Text>
       <M>{longDate(me.wedding.date)} · {me.wedding.city}</M>
+      {/* PARADOX OF THE ACTIVE USER: one dismissible tip, shown once, teaches where to start. */}
+      {tab === 'overview' ? <View style={{ marginTop: SP.group, marginBottom: -SP.near }}><Hint id="plan-start" text={tr('Everything for your wedding is here. Start with Do this next.')} /></View> : null}
       {/* Five fixed sections that always fit the width; everything else lives under Tools. */}
       <View accessibilityRole="tablist" style={{ flexDirection: 'row', marginTop: 12, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 4 }}>
         {PLAN_BAR.map(([k, n, icon]) => { const on = k === 'tools' ? tab === 'tools' || !!tool : tab === k; return (
-          <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tr(n)} onPress={() => setTab(k)}
+          <PressScale key={k} style={{ flex: 1 }}>{ph => <Pressable {...ph} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tr(n)} onPress={() => setTab(k)}
             style={({ pressed }) => ({ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: narrow ? 48 : 52, paddingHorizontal: 2, borderRadius: 10, backgroundColor: on ? C.tint : 'transparent', opacity: pressed ? 0.7 : 1 })}>
             <Icon name={icon} size={20} color={on ? C.primary : C.mute} strokeWidth={on ? 1.8 : 1.5} />
             <Text maxFontSizeMultiplier={1.1} style={{ fontSize: narrow ? 11 : 12, color: on ? C.primary : C.mute, fontWeight: on ? '600' : '500' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{tr(n)}</Text>
-          </Pressable>); })}
+          </Pressable>}</PressScale>); })}
       </View>
       {tool ? <Pressable accessibilityRole="button" onPress={() => setTab('tools')} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, marginTop: 4 }}>
         <View style={{ transform: [{ scaleX: -1 }] }}><Icon name="chevron" size={16} color={C.primary} /></View>
         <Text maxFontSizeMultiplier={1.3} style={{ color: C.primary, fontSize: 13, fontWeight: '500' }}>{tr('All tools')}</Text><Text maxFontSizeMultiplier={1.3} style={{ color: C.mute, fontSize: 13 }}> · {tr(tool[1])}</Text>
       </Pressable> : null}
     </View>
-    <Rise key={tab} style={{ flex: 1 }}>{tab === 'tools' ? <ToolsHub open={setTab} /> : tab === 'overview' ? <Overview open={setTab} nav={nav} /> : tab === 'settings' ? <WeddingSettings wedding={me.wedding} onSaved={reload} /> : tab === 'checklist' ? <TaskManager /> : tab === 'budget' ? <BudgetManager /> : tab === 'events' ? <Events /> : tab === 'shortlist' ? <ShortlistTab navigation={nav} /> : tab === 'family' ? <Family /> : tab === 'shagun' ? <Gifts /> : tab === 'stays' ? <Stays /> : tab === 'run' ? <RunSheet /> : tab === 'shopping' ? <Shopping /> : tab === 'contacts' ? <DayContacts /> : tab === 'documents' ? <Documents /> : tab === 'seating' ? <Seating /> : tab === 'invite' ? <InviteTab title={me.wedding.title} /> : tab === 'muhurat' ? <Muhurat onDateChange={reload} /> : tab === 'menu' ? <Menu /> : tab === 'transport' ? <Transport /> : tab === 'practice' ? <Practice /> : tab === 'ideas' ? <Ideas /> : tab === 'giving' ? <GiftsToGive /> : <Guests />}</Rise></View>);
+    <Slide key={tab} dir={dir} style={{ flex: 1 }}>{tab === 'tools' ? <ToolsHub open={setTab} /> : tab === 'overview' ? <Overview open={setTab} nav={nav} /> : tab === 'settings' ? <WeddingSettings wedding={me.wedding} onSaved={reload} /> : tab === 'checklist' ? <TaskManager /> : tab === 'budget' ? <BudgetManager /> : tab === 'events' ? <Events /> : tab === 'shortlist' ? <ShortlistTab navigation={nav} /> : tab === 'family' ? <Family /> : tab === 'shagun' ? <Gifts /> : tab === 'stays' ? <Stays /> : tab === 'run' ? <RunSheet /> : tab === 'shopping' ? <Shopping /> : tab === 'contacts' ? <DayContacts /> : tab === 'documents' ? <Documents /> : tab === 'seating' ? <Seating /> : tab === 'invite' ? <InviteTab title={me.wedding.title} /> : tab === 'muhurat' ? <Muhurat onDateChange={reload} /> : tab === 'menu' ? <Menu /> : tab === 'transport' ? <Transport /> : tab === 'practice' ? <Practice /> : tab === 'ideas' ? <Ideas /> : tab === 'giving' ? <GiftsToGive /> : <Guests />}</Slide></View>);
 }
 import { COMMUNITIES } from './india';
 import { CityPicker } from './citypicker';
+import { INDIA_CITIES } from './india';
 const BUDGETS = [500000, 1000000, 1500000, 2500000, 5000000];
 const GUEST_COUNTS = [100, 250, 500, 1000];
 // One question group per card, so the form reads as a few short steps rather than one long list.
@@ -237,7 +260,17 @@ const SetupSection = ({ n, title, hint, children }: { n: number; title: string; 
 function Setup({ onDone, name }: { onDone: () => void; name?: string }) {
   const first = (name || '').trim().split(/\s+/)[0] || '';
   const [f, setF] = useState({ me: first, partner: '', date: '', city: 'Pune', otherCity: '', budget: '1500000', guests: '250', community: 'North Indian Hindu' });
-  const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [moreTrad, setMoreTrad] = useState(false); const shakeErr = useShake(error);
+  // TESLER'S LAW + DEFAULT EFFECT: the app absorbs the work. City comes from onboarding; budget and guests start at common values.
+  useEffect(() => {
+    let on = true;
+    getPrefs().then(p => {
+      const c = (p?.city || '').trim(); if (!on || !c) return;
+      const known = INDIA_CITIES.flatMap(([, cs]) => cs).find(x => x.toLowerCase() === c.toLowerCase());
+      setF(cur => cur.city !== 'Pune' || cur.otherCity ? cur : known ? { ...cur, city: known } : { ...cur, city: 'other', otherCity: c });
+    });
+    return () => { on = false; };
+  }, []);
   const set = (k: string, v: string) => { setF({ ...f, [k]: v }); setError(''); };
   const city = f.city === 'other' ? f.otherCity.trim() : f.city;
   const go = async () => {
@@ -257,7 +290,8 @@ function Setup({ onDone, name }: { onDone: () => void; name?: string }) {
       <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 28, color: C.goldSoft, marginTop: 4 }}>{first ? `${tr('Welcome')}, ${first}` : tr('Welcome')}</Text>
       <Text maxFontSizeMultiplier={1.3} style={{ color: '#F4DDE5', fontSize: 15, lineHeight: 22, marginTop: 8, maxWidth: 300 }}>{tr('Four quick answers and we’ll build your checklist, budget split and ceremonies. You can change any of it later.')}</Text>
     </View>
-    <View style={{ padding: 16, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
+    <View style={{ padding: SP.block, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
+      <M style={{ marginBottom: SP.group }}>{tr('We filled these in. Change anything that is off.')}</M>
       <SetupSection n={1} title={tr('Who’s getting married?')}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <View style={{ flex: 1 }}><Input label={tr('Your name')} value={f.me} onChangeText={v => set('me', v)} autoCapitalize="words" maxLength={40} /></View>
@@ -278,9 +312,11 @@ function Setup({ onDone, name }: { onDone: () => void; name?: string }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{GUEST_COUNTS.map(g => <Chip key={g} label={String(g)} on={+f.guests === g} onPress={() => set('guests', String(g))} />)}</View>
       </SetupSection>
       <SetupSection n={4} title={tr('Your traditions')} hint={tr('We suggest ceremonies to match. Keep only the ones your families want.')}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{COMMUNITIES.map(c => <Chip key={c} label={tr(c)} on={f.community === c} onPress={() => set('community', c)} />)}</View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{COMMUNITIES.filter(c => c === f.community).map(c => <Chip key={c} label={tr(c)} on onPress={() => set('community', c)} />)}</View>
+        <Collapse open={moreTrad}><View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{COMMUNITIES.filter(c => c !== f.community).map(c => <Chip key={c} label={tr(c)} on={false} onPress={() => set('community', c)} />)}</View></Collapse>
+        <MoreToggle open={moreTrad} onPress={() => setMoreTrad(m => !m)} count={COMMUNITIES.length - 1} />
       </SetupSection>
-      {!!error && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text>}
+      {!!error && <Animated.View style={shakeErr}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text></Animated.View>}
       <Btn title={busy ? tr('Creating your plan…') : tr('Create our wedding plan')} onPress={go} disabled={busy} />
     </View>
   </ScrollView>);

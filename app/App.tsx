@@ -58,10 +58,11 @@ const ti = (name: IconName) => ({ color, focused }: { color: string; focused: bo
 const CoupleTabs = (me: any, logout: () => void, landing?: string) => function T() {
   const t = useT();
   return (<Tab.Navigator screenOptions={tabs} initialRouteName={landing}>
-    <Tab.Screen name="Discover" options={{ title: t('discover'), tabBarIcon: ti('search'), headerShown: false }} component={Discover} />
-    <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }}>{(p: any) => <DealsList {...p} />}</Tab.Screen>
+    {/* SERIAL POSITION EFFECT: people remember the first and last items best, so the most important tabs sit first (Plan) and last (Profile). */}
     <Tab.Screen name="Plan" options={{ title: t('plan'), tabBarIcon: ti('partnership'), headerShown: false }} component={Plan} />
+    <Tab.Screen name="Discover" options={{ title: t('discover'), tabBarIcon: ti('search'), headerShown: false }} component={Discover} />
     <Tab.Screen name="Ask" options={{ title: tr('Ask'), tabBarIcon: ti('star'), headerShown: false }} component={Assistant} />
+    <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }}>{(p: any) => <DealsList {...p} />}</Tab.Screen>
     <Tab.Screen name="Profile" options={{ title: t('profile'), tabBarIcon: ti('person') }}>{() => <ProfileScreen onLogout={logout} />}</Tab.Screen></Tab.Navigator>);
 };
 const VendorTabs = (me: any, logout: () => void, landing?: string) => function T() {
@@ -76,10 +77,11 @@ const VendorTabs = (me: any, logout: () => void, landing?: string) => function T
 const GuestTabs = function T() {
   const t = useT();
   return (<Tab.Navigator screenOptions={tabs}>
+    {/* SERIAL POSITION EFFECT: first and last slots are remembered best; guests start with Discover, end with Profile. */}
     <Tab.Screen name="Discover" options={{ title: t('discover'), tabBarIcon: ti('search'), headerShown: false }} component={Discover} />
-    <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }} component={GuestVendors} />
     <Tab.Screen name="Plan" options={{ title: t('plan'), tabBarIcon: ti('partnership'), headerShown: false }} component={LocalPlanner} />
     <Tab.Screen name="Ask" options={{ title: tr('Ask'), tabBarIcon: ti('star'), headerShown: false }} component={Assistant} />
+    <Tab.Screen name="Vendors" options={{ title: tr('My vendors'), tabBarIcon: ti('chat') }} component={GuestVendors} />
     <Tab.Screen name="Profile" options={{ title: t('profile'), tabBarIcon: ti('person') }} component={GuestProfile} /></Tab.Navigator>);
 };
 export default function App() {

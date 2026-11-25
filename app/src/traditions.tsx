@@ -3,6 +3,7 @@ import { Image, Linking, Pressable, ScrollView, Share, Text, View } from 'react-
 import * as ImagePicker from 'expo-image-picker';
 import { api, getBase } from './api';
 import { tr } from './i18n';
+import { Collapse } from './motion';
 import { Btn, C, Card, Check, Chip, ContactButtons, DateField, Empty, F, Input, M, Rise, Tag, confirm, dateIN, err, inr, s, todayISO } from './ui';
 import { Icon } from './icons';
 import { useLoad } from './couple';
@@ -87,7 +88,7 @@ export function Guests() {
         {g.phone ? <Btn small kind="quiet" icon="send" title="WhatsApp" onPress={() => share(g)} /> : null}
         {!g.card_given ? <Btn small kind="quiet" icon="check" title={tr('Card given')} onPress={() => patch(g, { card_given: true })} /> : null}
       </View>
-      {open === g.id ? <GuestEditor g={g} patch={body => patch(g, body)} onRemove={() => remove(`/guests/${g.id}`, g.name, reload)} /> : null}
+      <Collapse open={open === g.id}><GuestEditor g={g} patch={body => patch(g, body)} onRemove={() => remove(`/guests/${g.id}`, g.name, reload)} /></Collapse>
       {events.length ? <View style={{ marginTop: 8 }}><M style={{ marginBottom: 4 }}>{tr('Invited to')}</M><ScrollView horizontal showsHorizontalScrollIndicator={false}>{events.map(e => {
         const reply = replyFor(g.id, e.id);
         return <Chip key={e.id} label={e.name} on={!!reply} icon={reply === 'yes' ? 'check' : reply === 'no' ? 'close' : undefined} onPress={() => invite(g.id, e.id, !reply)} />;

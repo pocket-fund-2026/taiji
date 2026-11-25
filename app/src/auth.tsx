@@ -1,8 +1,9 @@
 import { tr } from './i18n';
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { api, setToken, setBase, getBase } from './api';
-import { Btn, Input, C, F, H, M, Chip, Tag, Rise } from './ui';
+import { Btn, Input, C, F, H, M, Chip, Tag, Rise, useShake } from './ui';
+import { Collapse } from './motion';
 import { Icon, IconName, Logo } from './icons';
 import { FloralArch } from './visuals';
 import { LegalLink } from './safety';
@@ -28,7 +29,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
   const [phone, setPhone] = useState(''); const [otp, setOtp] = useState(''); const [step, setStep] = useState<0 | 1 | 2>(0);
   const [role, setRole] = useState<'couple' | 'vendor' | null>(null); const [name, setName] = useState(''); const [server, setServer] = useState(getBase()); const [busy, setBusy] = useState(false);
   const [showServer, setShowServer] = useState(false); const [accept, setAccept] = useState(false);
-  const [error, setError] = useState(''); const [wait, setWait] = useState(0);
+  const [error, setError] = useState(''); const shakeErr = useShake(error); const [wait, setWait] = useState(0);
   const submitted = useRef('');
   // Ask the server which ways in it offers; email is the front door whenever it is on.
   useEffect(() => { api('/auth/methods').then((m: any) => { setMethods(m); if (m?.email) setMode('email'); }).catch(() => setMethods({ email: false, phone: true })); }, [server]);
@@ -117,7 +118,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
             <View style={{ flexDirection: 'row', gap: 16, marginBottom: 12, paddingLeft: 36 }}><LegalLink path="/terms" label={tr('Terms')} /><LegalLink path="/privacy" label={tr('Privacy Policy')} />{role === 'vendor' ? <LegalLink path="/vendor-terms" label={tr('Vendor Terms')} /> : null}</View>
           </> : null}
 
-          {!!error && <Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text>}
+          {!!error && <Animated.View style={shakeErr}><Text maxFontSizeMultiplier={1.3} accessibilityRole="alert" style={{ color: C.warn, fontSize: 15, lineHeight: 20, marginBottom: 8 }}>{error}</Text></Animated.View>}
           <Btn title={busy ? tr('Please wait…') : step === 0 ? tr('Send code') : step === 1 ? tr('Verify') : tr('Create account')} onPress={() => go()} disabled={busy} />
           {step === 0 && methods?.email && methods?.phone ? <Btn kind="quiet" title={em ? tr('Use my mobile number instead') : tr('Use my email instead')} onPress={() => { setMode(em ? 'phone' : 'email'); setError(''); }} disabled={busy} /> : null}
           {step === 1 ? <Btn kind="quiet" title={wait > 0 ? `${tr('Resend code in')} ${wait}s` : tr('Resend code')} onPress={resend} disabled={busy || wait > 0} /> : null}
@@ -127,7 +128,7 @@ export default function Login({ onDone, onClose, lang, setLang }: { onDone: (s: 
         <View style={{ flexGrow: 1 }} />
         
         <Pressable accessibilityRole="button" onPress={() => setShowServer(!showServer)} style={{ alignSelf: 'center', minHeight: 40, justifyContent: 'center' }}><Text maxFontSizeMultiplier={1.3} style={{ color: C.mute, fontSize: 12, textDecorationLine: 'underline' }}>{showServer ? tr('Hide server settings') : tr('Server settings')}</Text></Pressable>
-        {showServer && <Input label={tr('Server address')} value={server} onChangeText={setServer} autoCapitalize="none" />}
+        <Collapse open={showServer}><Input label={tr('Server address')} value={server} onChangeText={setServer} autoCapitalize="none" /></Collapse>
       </View>
     </ScrollView>);
 }
